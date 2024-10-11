@@ -19,14 +19,14 @@
 --				2) cfg writer use the data from the cfg-mem perform SPI write
 --				[TODO] 3) The cfg writer also checks the readback data to validate the SPI transation.
 --
---				[MuTRiG TSA]
+--				[Threshold Scan Automation (TSA)] 
 --				Automatically perform tth scan of the selected MuTRiG. MIDAS should write to CSR to start this routine.
 --		======= Note!!! The TTH scan use the data from the last configuration as a template when incrementing the TTH value. So, you should at least config all MuTRiGs once.
 --				Work flow: 1) Modify Content in the CFG RAM. 2) Config through the Config Writer 3) Collect rate from the counters and store it to result RAM
 
 -- Ports: 
 --			avmm(host) to qsys ram, 
---			avmm(agent) for csr. write to FC04(opcode)/FC05(data loc) is treated as the IRQ.
+--			avmm(agent) for csr. write to FC04(opcode) is treated as the IRQ. (FC05(data loc) does not trigger IRQ)
 --			
 --							...
 -- 
@@ -123,26 +123,25 @@ use ieee.std_logic_arith.conv_std_logic_vector;
 entity mutrig_ctrl is 
 	generic( 
 		N_MUTRIG											: natural := 4;
-		-- BANK_INDEX										: natural := 0; -- it supports 8 asic in one controller, no need to seperate banks
-		INTENDED_MUTRIG_VERSION								: string := "MuTRiG 3";
+		INTENDED_MUTRIG_VERSION								: string := "MuTRiG 3"; -- different variant has different bit locations
 		MUTRIG_CFG_LENGTH_BIT								: natural := 2662; -- mutrig3 is 2662; mutrig2 is 2719; mutrig1 is 2358
 		CPOL												: natural := 0;
 		CPHA												: natural := 0;
-		CLK_FREQUENCY										: natural range 0 to 10**9:= 156250000;
+		CLK_FREQUENCY										: natural := 156250000;
 		COUNTER_MM_ADDR_OFFSET_WORD							: natural := 16#8000#;
+		EN_MCC												: boolean := true;
 		DEBUG												: natural := 1
 	);
 	port(
 		-- clock and reset interface 
-		i_clk								: std_logic; -- ideally should be 156.25MHz, you must also set the generic CLK_FREQUENCY to match it.
-		i_rst								: std_logic; -- this reset is async assert, sync release to i_clk.
+		csi_controller_clock_clk			: std_logic; -- ideally should be 156.25MHz, you must also set the generic CLK_FREQUENCY to match it.
+		i_rst								: std_logic; -- this reset is async assert, sync release to i_clk.					 
 		
-		i_clk_spi							: std_logic; -- use 40MHz clock
+		csi_spi_clock_clk					: std_logic; -- use 40MHz clock
 		i_rst_spi							: std_logic; -- reset for 40MHz clock
-		-- TODO: add another dedicated spi reset
 	
 		-- [Avalom Memory-Mapped Master] exclusive access to scratchpad of mutrig config
-		avm_schpad_address					: out std_logic_vector(9 downto 0); -- word addressing: (byte 0x0000 to 0x03ff)
+		avm_schpad_address					: out std_logic_vector(15 downto 0); -- word addressing: (byte 0x0000 to 0x03ff)
 		avm_schpad_read						: out std_logic;
 		avm_schpad_readdata					: in  std_logic_vector(31 downto 0);
 		avm_schpad_response					: in  std_logic_vector(1 downto 0);
@@ -176,9 +175,9 @@ entity mutrig_ctrl is
 		avs_scanresult_readdata				: out std_logic_vector(31 downto 0);
 		avs_scanresult_waitrequest			: out std_logic;
 		
-		-- [conduit] counter control port -- TODO: CDC! use conduit or reset request?
-		o_sclr_req							: out std_logic; 
-		
+		-- [reset] counter control port 
+		rso_sclr_counter_reset						: out std_logic;
+
 		-- [conduit] spi_export2top
 		spi_miso					: in  std_logic;
 		spi_mosi					: out std_logic;
@@ -455,8 +454,8 @@ begin
     --
 	--=============================================================================================                                                                                        
                                                                                            
-	sclk		<= i_clk_spi;
-	cclk		<= i_clk;
+	sclk		<= csi_spi_clock_clk;
+	cclk		<= csi_controller_clock_clk;
 	
 	
 	--===============================================================================
@@ -883,7 +882,7 @@ begin
 			monitor_done		<= '0';
 			avm_cnt_read		<= '0';
 			cmd_posted			<= '0';
-			o_sclr_req			<= '0';
+			rso_sclr_counter_reset			<= '0';
 			sclr_timer_cnt		<= 0;
 			wait_timer_cnt		<= (others => '0');
 			slaveresponse_timeout		<= '0';
@@ -893,19 +892,19 @@ begin
 		elsif (rising_edge(cclk)) then
 			case monitor_flow is 
 				when IDLE => 
-					o_sclr_req			<= '0';
+					rso_sclr_counter_reset			<= '0';
 					if (monitor_start = '1') then
 						monitor_flow		<= SCLR_COUNTERS;
 					end if;
 				when SCLR_COUNTERS => 
 					sclr_timer_cnt		<= sclr_timer_cnt + 1;
 					if (sclr_timer_cnt >= 5) then -- assert sclr of the channel counters
-						o_sclr_req			<= '1';
+						rso_sclr_counter_reset			<= '1';
 						monitor_flow		<= WAIT_FOR_COUNTERS;
 						sclr_timer_cnt		<= 0;
 					end if;
 				when WAIT_FOR_COUNTERS =>
-					o_sclr_req			<= '0';
+					rso_sclr_counter_reset			<= '0';
 					wait_timer_cnt		<= conv_std_logic_vector(to_integer(unsigned(wait_timer_cnt)) + 1, wait_timer_cnt'length); -- wait time count is ticks for 1 s at this frequency
 					if ((to_integer(unsigned(wait_timer_cnt))) >= to_integer(unsigned(monitor_wait_cycles)) + 5) then -- give 5 cycle of head room
 					-- the counters are in 125MHz, this IP is in 156.25MHz
@@ -982,7 +981,7 @@ begin
 					else -- TODO: reset everything here
 						monitor_flow		<= IDLE;
 						cmd_posted			<= '0';
-						o_sclr_req			<= '0';
+						rso_sclr_counter_reset			<= '0';
 						sclr_timer_cnt		<= 0;
 						wait_timer_cnt		<= (others => '0');
 						slaveresponse_timeout		<= '0';
@@ -1105,11 +1104,10 @@ begin
 				when READ_CSR => 
 					case avs_csr_address is
 						when conv_std_logic_vector(0,avs_csr_address'length) =>
-							
 							if (controller_busy = '1') then 
-							-- MIDAS cpp software:
-							-- the poll upper 16 bits is 0: finished; otherwise: ongoing/busy. 
-							-- poll lower 16 bits: read back status for user
+							-- MIDAS cpp software: poll this address for status
+							-- (31:16): 	0=finished, non-zero=busy
+							-- (15:0):		when finished, 0=ok -1=err. when busy, =current_tth. -- TODO: add err from crc checking
 								--avs_csr_readdata			<= (others => '1');
 								avs_csr_readdata(31 downto 16)	<= csr.opcode(31 downto 16);
 								avs_csr_readdata(15 downto 0)	<= csr.status;
@@ -1195,8 +1193,10 @@ begin
 			else
 				-- idle, ignore command is either of the two routine is busy
 			end if;
-			if (rpc.start = '1' and rpc.command /= CMD_MUTRIG_ASIC_CFG and rpc.command /= CMD_MUTRIG_ASIC_TTH_SCAN) then
-			-- terminate the rpc if the command is not found in the legal cmd list
+			if ((rpc.start = '1' and rpc.command /= CMD_MUTRIG_ASIC_CFG and rpc.command /= CMD_MUTRIG_ASIC_TTH_SCAN) or EN_MCC /= true) then
+			-- terminate the rpc 
+			-- 1) if the command is not found in the legal cmd list
+			-- 2) if MCC subroutine is not enabled 
 				rpc.start	<= '0';
 			end if;
 		end if;
