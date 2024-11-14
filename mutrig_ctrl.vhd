@@ -287,7 +287,7 @@ architecture rtl of mutrig_ctrl is
 	type mover_avmm_rd_flow_t is (S1,S2,S3,RESET,IDLE);
 	signal mover_avmm_rd_flow			: mover_avmm_rd_flow_t;
 	
-	type cfg_writer_flow_t is (IDLE,INIT,WRITING,FINISHING,PAUSE);
+	type cfg_writer_flow_t is (IDLE,STARTING,INIT,WRITING,PAUSING,FINISHING,PAUSE);
 	signal cfg_writer_flow				: cfg_writer_flow_t;
 	
 	type cfg_checker_flow_t is (IDLE,RESET,CHECKING,REPORTING);
@@ -360,14 +360,17 @@ architecture rtl of mutrig_ctrl is
 	signal flag_ctrl2spi_wrempty	: std_logic;
 	signal flag_ctrl2spi_rdempty	: std_logic;
 	
-	signal cfg_mem_dinA			: std_logic_vector(31 downto 0);
-	--signal cfg_mem_dinB		: std_logic;
-	signal cfg_mem_addrA		: std_logic_vector(8 downto 0);
-	signal cfg_mem_addrB		: std_logic_vector(13 downto 0);
-	signal cfg_mem_wr_enA		: std_logic;
-	--signal cfg_mem_wr_enB		: std_logic;
-	--signal cfg_mem_doutA		: std_logic_vector(31 downto 0);
-	signal cfg_mem_doutB		: std_logic;
+    constant STARTING_WAIT_CYCLES       : integer := 1000;
+	signal cfg_mem_dinA			        : std_logic_vector(31 downto 0);
+	--signal cfg_mem_dinB		        : std_logic;
+	signal cfg_mem_addrA		        : std_logic_vector(8 downto 0);
+	signal cfg_mem_addrB		        : std_logic_vector(13 downto 0);
+	signal cfg_mem_wr_enA		        : std_logic;
+	--signal cfg_mem_wr_enB		        : std_logic;
+	--signal cfg_mem_doutA		        : std_logic_vector(31 downto 0);
+	signal cfg_mem_doutB		        : std_logic;  
+    signal cfg_writer_counter_en        : std_logic;
+    signal cfg_writer_counter           : unsigned(15 downto 0);
 	
 	signal mover_trans_cnt	: std_logic_vector(7 downto 0);
 	
@@ -427,6 +430,11 @@ architecture rtl of mutrig_ctrl is
 	
 	
 begin
+    -- ------------------
+    -- constant checks 
+    -- ------------------
+    --assert false report ("STARTING_WAIT_CYCLES = 'STARTING_WAIT_CYCLES'" & STARTING_WAIT_CYCLES);
+        
 
 	gen_derived_tth_location : for i in 0 to CFG_N_CH-1 generate 
 	-- derive the constants for the tth locations in cfg mem (counts from 0)
@@ -1501,7 +1509,20 @@ begin
 --					end case;
 --				when others =>
 --			end case;
-			
+            -- ------------------------
+            -- cfg_writer_counter 
+            -- ------------------------
+            if (cfg_writer_counter_en = '1') then 
+                cfg_writer_counter      <= cfg_writer_counter + 1;
+            else
+                cfg_writer_counter      <= (others => '0');
+            end if;
+            
+            
+            
+			-- -------------------
+            -- cfg_writer fsm
+            -- -------------------
 			case cfg_writer_flow is 
 				when INIT =>
 					spi_sclk											<= '0';
@@ -1509,12 +1530,18 @@ begin
 					sconfig_state.done									<= '0';
 					sconfig_state.err									<= '0'; 
 					sconfig_state.errinfo 								<= (others=>'0');
-					cfg_writer_flow										<= WRITING;
+					cfg_writer_flow										<= STARTING;
 					if (write_1st_done = '1' and write_2nd_done = '0') then
 						cfg_checker_flow	<= CHECKING; -- check only in second time write
 					else
 						cfg_checker_flow	<= IDLE;
 					end if;
+                when STARTING => -- wait for mosi to settle, require as many as 25 us
+                    cfg_writer_counter_en       <= '1';
+                    if (to_integer(cfg_writer_counter) > STARTING_WAIT_CYCLES) then -- 
+                        cfg_writer_flow        <= WRITING;
+                        cfg_writer_counter_en   <= '0';
+                    end if;
 				when WRITING =>
 					case spi_writing_flow is 
 					-- writing is from the LSB of all the bit stream, so the MSB will be shifted into the bit0 of MuTRiG
@@ -1549,7 +1576,7 @@ begin
 						spi_wr_bit_cnt		<= (others=>'0');
 						spi_sclk				<= '0';
 						spi_ssn				<= (others=>'1');
-						cfg_writer_flow	<= INIT;
+						cfg_writer_flow	<= PAUSING;
 					elsif (write_1st_done = '1' and write_2nd_done = '1') then -- this is the second time write
 						-- reset things and go IDLE
 						spi_wr_bit_cnt				<= (others=>'0');
@@ -1561,6 +1588,12 @@ begin
 						sconfig_state.errinfo 	<= (others=>'0');
 					else -- trap state
 					end if;
+                when PAUSING => -- wait between 2 writes, make sure the csn is high so data is latched into mutrig
+                    cfg_writer_counter_en       <= '1';
+                    if (to_integer(cfg_writer_counter) > STARTING_WAIT_CYCLES) then -- 
+                        cfg_writer_flow        <= INIT;
+                        cfg_writer_counter_en   <= '0';
+                    end if;
 				when IDLE =>
 					spi_writing_flow			<= CLK_LOW;
 					write_1st_done				<= '0';
@@ -1576,6 +1609,7 @@ begin
 					else 
 						-- pure idle
 					end if;
+                    cfg_writer_counter_en       <= '0';
 				when others =>
 			end case;
 		end if;
