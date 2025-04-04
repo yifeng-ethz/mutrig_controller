@@ -5,25 +5,32 @@
 --		Date: Feb 7, 2024
 -- Revision: 2.0 (added TSA (tth scan automation) as the co-processer) 
 --		Date: Mar 7, 2024
+-- Revision: 2.1 (fix the bug when n=8, the lower bank configs was using the configs of upper bank)
+--      Date: Mar 25, 2025
 -- =========
 -- Description:	[MuTRiG Controller]
---				This IP consists of two major routines, which are descriped below. 
+--				This IP consists of two major routines, which are described as follows. 
 --				The two routines also controls multiple sub-routines. The IRQ will be sent to the routines, if they are both idle.
 --				In order to prevent contention (multiple driver), there are OR-logic implemented to resolve this. 
 --
 --				[MuTRiG Configuration Controller (MCC)] 
 -- 				Handles mutrig configuration scheme. Data will be loaded in the scratch-pad ram by SWB and MIDAS should write to CSR to start this routine.
 --				Work flow: 
---				1) commands the data mover to move the 
---				cfg bitstream from scratch-pad RAM to asic delicated cfg-mem RAM. 
---				2) cfg writer use the data from the cfg-mem perform SPI write
---				[TODO] 3) The cfg writer also checks the readback data to validate the SPI transation.
+--				    1) commands the data mover to move the cfg bitstream from scratch-pad RAM to asic delicated cfg-mem RAM. 
+--				    2) cfg writer use the data from the cfg-mem perform SPI write
+--		     [TODO] 3) The cfg writer also checks the readback data to validate the SPI transation.
 --
 --				[Threshold Scan Automation (TSA)] 
+--          
 --				Automatically perform tth scan of the selected MuTRiG. MIDAS should write to CSR to start this routine.
---		======= Note!!! The TTH scan use the data from the last configuration as a template when incrementing the TTH value. So, you should at least config all MuTRiGs once.
+--		        Note!!! The TTH scan use the data from the last configuration as a template when incrementing the TTH value from mod ram (it read, modify and write that line to cfg ram). 
+--              So, you should at least config all MuTRiGs once, where the data are loaded in mod ram. 
 --				Work flow: 1) Modify Content in the CFG RAM. 2) Config through the Config Writer 3) Collect rate from the counters and store it to result RAM
-
+--
+-- Components:
+--              cfg ram: for interfacing with config writer
+--              mod ram: for remindering the last config. Used when tsa as it needs last cfg and modify only tth field of all channels of all mutrigs.
+--
 -- Ports: 
 --			avmm(host) to qsys ram, 
 --			avmm(agent) for csr. write to FC04(opcode) is treated as the IRQ. (FC05(data loc) does not trigger IRQ)
@@ -313,18 +320,7 @@ architecture rtl of mutrig_ctrl is
 	signal write_1st_done		: std_logic;
 	signal write_2nd_done		: std_logic;
 
-	component alt_dpram
-	PORT
-	(
-		data			: IN STD_LOGIC_VECTOR (31 DOWNTO 0);
-		rdaddress		: IN STD_LOGIC_VECTOR (13 DOWNTO 0);
-		rdclock			: IN STD_LOGIC ;
-		wraddress		: IN STD_LOGIC_VECTOR (8 DOWNTO 0);
-		wrclock			: IN STD_LOGIC  := '1';
-		wren			: IN STD_LOGIC  := '0';
-		q				: OUT STD_LOGIC_VECTOR (0 DOWNTO 0)
-	);
-	end component;
+	
 
 	
 	component alt_dcfifo_cdc
@@ -361,13 +357,11 @@ architecture rtl of mutrig_ctrl is
 	signal flag_ctrl2spi_rdempty	: std_logic;
 	
     constant STARTING_WAIT_CYCLES       : integer := 1000;
+    constant MEMORY_ADDR_WIDTH          : natural := integer(  ceil(log2(real(N_MUTRIG))) + ceil(log2(real(CFG_MEM_PARTITION_SIZE_WORD)))  ); -- -- 7 (128 for each mutrig) + 3 (8 asic) = 10. ex: for n_asic=4, need 512 entries (9 bits); for n_asic=8, need 1024 entries (10 bits)
 	signal cfg_mem_dinA			        : std_logic_vector(31 downto 0);
-	--signal cfg_mem_dinB		        : std_logic;
-	signal cfg_mem_addrA		        : std_logic_vector(8 downto 0);
-	signal cfg_mem_addrB		        : std_logic_vector(13 downto 0);
+	signal cfg_mem_addrA		        : std_logic_vector(MEMORY_ADDR_WIDTH-1 downto 0); -- 10 bits, was 9 bits (A: 32-bit data port)
+	signal cfg_mem_addrB		        : std_logic_vector(MEMORY_ADDR_WIDTH-1+5 downto 0); -- 15 bits, was 14 bits (B: 1-bit data port)
 	signal cfg_mem_wr_enA		        : std_logic;
-	--signal cfg_mem_wr_enB		        : std_logic;
-	--signal cfg_mem_doutA		        : std_logic_vector(31 downto 0);
 	signal cfg_mem_doutB		        : std_logic;  
     signal cfg_writer_counter_en        : std_logic;
     signal cfg_writer_counter           : unsigned(15 downto 0);
@@ -389,7 +383,7 @@ architecture rtl of mutrig_ctrl is
 	
 	signal current_tth,current_tth_flip			: std_logic_vector(5 downto 0);
 	signal modifier_wr_back_data				: std_logic_vector(31 downto 0);
-	signal modifier_wr_back_addr				: std_logic_vector(8 downto 0);
+	signal modifier_wr_back_addr				: std_logic_vector(MEMORY_ADDR_WIDTH-1 downto 0);
 	signal modifier_wr_back_valid				: std_logic;
 	signal modifier_wr_back_en					: std_logic;
 	signal updated_ch							: std_logic;
@@ -427,13 +421,26 @@ architecture rtl of mutrig_ctrl is
 		result		: OUT STD_LOGIC_VECTOR (39 DOWNTO 0)
 	);
 	end component;
+    
+    -- memory 
+    component alt_dpram -- NOTE: you have to manually update the ip from outside through altera ip wizard. TODO: change this to auto.
+	port (
+		data			: in std_logic_vector(31 downto 0); 
+		rdaddress		: in std_logic_vector(MEMORY_ADDR_WIDTH-1+5 downto 0);
+		rdclock			: in std_logic;
+		wraddress		: in std_logic_vector(MEMORY_ADDR_WIDTH-1 downto 0);
+		wrclock			: in std_logic  := '1';
+		wren			: in std_logic  := '0';
+		q				: out std_logic_vector(0 downto 0)
+	);
+	end component;
 	
 	
 begin
     -- ------------------
     -- constant checks 
     -- ------------------
-    --assert false report ("STARTING_WAIT_CYCLES = 'STARTING_WAIT_CYCLES'" & STARTING_WAIT_CYCLES);
+    assert CFG_MEM_PARTITION_SIZE_WORD*N_MUTRIG<=2**MEMORY_ADDR_WIDTH report "Internal memory size too small!" severity error;
         
 
 	gen_derived_tth_location : for i in 0 to CFG_N_CH-1 generate 
