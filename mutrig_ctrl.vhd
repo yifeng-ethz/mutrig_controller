@@ -22,10 +22,11 @@
 --
 --				[Threshold Scan Automation (TSA)] 
 --          
---				Automatically perform tth scan of the selected MuTRiG. MIDAS should write to CSR to start this routine.
---		        Note!!! The TTH scan use the data from the last configuration as a template when incrementing the TTH value from mod ram (it read, modify and write that line to cfg ram). 
+--				Automatically perform tth/eth scan of the selected MuTRiG. MIDAS should write to CSR to start this routine.
+--		        Note!!! The scan use the data from the last configuration as a template when incrementing the TTH value from mod ram (it read, modify and write that line to cfg ram). 
 --              So, you should at least config all MuTRiGs once, where the data are loaded in mod ram. 
---				Work flow: 1) Modify Content in the CFG RAM. 2) Config through the Config Writer 3) Collect rate from the counters and store it to result RAM
+--				Work flow for TTH: 1) modify Content in the CFG RAM. 2) config through the Config Writer 3) collect rate from the counters and store it to result RAM
+--				Work flow for ETH: 1) modify upper 2 bits to iterate all 4 patterns 2) perform scan as TTH
 --
 -- Components:
 --              cfg ram: for interfacing with config writer
@@ -216,6 +217,7 @@ architecture rtl of mutrig_ctrl is
 	constant CFG_HEADER_LENGTH						: integer := 34; -- bit
 	constant CFG_SINGLE_CH_LENGTH					: integer := 71; -- bit
 	constant CFG_SINGLE_CH_TTH_OFFSET				: integer := 24; -- bit
+	constant CFG_SINGLE_CH_ETH_OFFSET				: integer := 45; -- bit
 	constant CFG_N_CH								: integer := 32;
 	constant CFG_TTH_SETTING_LENGTH					: integer := 6; -- bit
 	
@@ -451,13 +453,25 @@ begin
 		derived_tth_location_word_end(i)	<= ((derived_tth_location_end(i)) / 32); -- 64=>1 ...
 		derived_tth_read_word_cnt(i)		<= derived_tth_location_word_end(i) - derived_tth_location_word(i) + 1; -- 1 or 2 words
 		derived_tth_bit_mod(i)				<= ((derived_tth_location(i)) mod 32); -- (58-1)/32 = 1==25, so result is bit 25
-		derived_tth_bit_mod_end(i)			<= (derived_tth_bit_mod(i)+5) mod 32; --(26+5)/32 = 0==30, so the result is bit 30
+		derived_tth_bit_mod_end(i)			<= (derived_tth_bit_mod(i)+5) mod 32; -- (26+5)/32 = 0==30, so the result is bit 30
 		derived_tth_bit_mod_enduf(i)		<= (derived_tth_bit_mod_end(i) - 5); -- for example, uf 1 bit, the lsb is -5 (only valid with modify_word>1)
-	end generate gen_derived_tth_location;
+	end generate;
+
+	gen_derived_eth_location : for i in 0 to CFG_N_CH-1 generate 
+	-- derive the constants for the tth locations in cfg mem (counts from 0)
+		derived_eth_location(i)				<= CFG_HEADER_LENGTH + CFG_SINGLE_CH_ETH_OFFSET + CFG_SINGLE_CH_LENGTH*i; -- new offset
+		derived_eth_location_end(i)			<= CFG_HEADER_LENGTH + CFG_SINGLE_CH_ETH_OFFSET + CFG_SINGLE_CH_LENGTH*i + 5; -- lsb-first: so we only modify lower bits, upper 2 bits are left for user to modify by configure before starting TSA
+		derived_eth_location_word(i)		<= ((derived_eth_location(i)) / 32); -- 
+		derived_eth_location_word_end(i)	<= ((derived_eth_location_end(i)) / 32); -- 
+		derived_eth_read_word_cnt(i)		<= derived_eth_location_word_end(i) - derived_eth_location_word(i) + 1; -- 1 or 2 words
+		derived_eth_bit_mod(i)				<= ((derived_eth_location(i)) mod 32); -- 
+		derived_eth_bit_mod_end(i)			<= (derived_eth_bit_mod(i)+5) mod 32; --
+		derived_eth_bit_mod_enduf(i)		<= (derived_eth_bit_mod_end(i) - 5); -- for example, uf 1 bit, the lsb is -5 (only valid with modify_word>1)
+	end generate;
 	
 	gen_constant_mutrig : for i in 0 to N_MUTRIG-1 generate
 		asic_cfg_bit_offset(i)				<= i*CFG_MEM_PARTITION_SIZE_WORD*32;
-	end generate gen_constant_mutrig;
+	end generate;
 	
 	--=============================================================================================
 	--   _____ _      ____   _____ _  __                  _   _____  ______  _____ ______ _______ 
