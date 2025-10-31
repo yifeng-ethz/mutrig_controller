@@ -1,9 +1,10 @@
 
 # 
-# mutrig_controller "MuTRiG Controller" v4.0
+# mutrig_controller "MuTRiG Controller" 
 # Yifeng Wang 2024.08.16.16:25:06
 # 
-# 
+# 24.0.1028 - stable version of MuTRiG controller supporting both MCC and TTH scan
+# 25.0.1021 - add ETH scan
 
 ###########################################################
 # request TCL package from ACDS 16.1
@@ -33,7 +34,7 @@ Performs SPI-configuration and threshold-scan of the MuTRiG ASIC. <br>
 <br>
 <b>MuTRiG Threshold Scan Automation(TSA)</b>
 <ul>
-	<li> Performs T-Threshold scan of the selected MuTRiG(s). </li>
+	<li> Performs T(cmd=0x0140_0000)/E(cmd=0170_0000)-Threshold scan of the selected MuTRiG(s). </li>
 	<li> External master writes to CSR to initiate the scan routine. </li>
 	<li> <b>Note!!!</b> The TTH scan uses the last configuration as a template when incrementing the TTH value. </li>
 	<li><b>Work Flow</b>:</li> 
@@ -45,13 +46,13 @@ Performs SPI-configuration and threshold-scan of the MuTRiG ASIC. <br>
 </ul>
 </html>"
 set_module_property NAME mutrig_controller2
-set_module_property VERSION 24.0.1028
+set_module_property VERSION 25.0.1021
 set_module_property INTERNAL false
 set_module_property OPAQUE_ADDRESS_MAP true
 set_module_property GROUP "Mu3e Control Plane/Modules"
 set_module_property AUTHOR "Yifeng Wang"
 set_module_property ICON_PATH ../figures/mu3e_logo.png
-set_module_property DISPLAY_NAME "MuTRiG Controller"
+set_module_property DISPLAY_NAME "MuTRiG Controller 2"
 set_module_property INSTANTIATE_IN_SYSTEM_MODULE true
 set_module_property EDITABLE false
 set_module_property REPORT_TO_TALKBACK false

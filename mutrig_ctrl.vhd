@@ -218,7 +218,7 @@ architecture rtl of mutrig_ctrl is
     constant CFG_HEADER_LENGTH						: integer := 34; -- bit
     constant CFG_SINGLE_CH_LENGTH					: integer := 71; -- bit
     constant CFG_SINGLE_CH_TTH_OFFSET				: integer := 24; -- bit
-    constant CFG_SINGLE_CH_ETH_OFFSET				: integer := 45; -- bit
+    constant CFG_SINGLE_CH_ETH_OFFSET				: integer := 47; -- bit (45: scan upper 6 bits range=0-255 step=4, 47: scan lower 6 bits range=0-63*user_eth_base step=1)
     constant CFG_N_CH								: integer := 32;
     constant CFG_TTH_SETTING_LENGTH					: integer := 6; -- bit
     
@@ -318,8 +318,8 @@ architecture rtl of mutrig_ctrl is
     signal spi_writing_flow				: spi_writing_flow_t;
     signal spi_checking_flow			: spi_writing_flow_t;
     
-    type tth_scan_automation_state_t is (IDLE,MOD_TTH,CFG,MONITOR_RATE,EVALUATION);
-    signal tth_scan_automation_state	: tth_scan_automation_state_t;
+    type scan_automation_state_t is (IDLE,MOD_TTH,MOD_ETH,CFG,MONITOR_RATE,EVALUATION);
+    signal scan_automation_state	: scan_automation_state_t;
     
     type modifier_flow_t is (IDLE,READ32,MODIFY,WRITE32);
     signal modifier_flow				: modifier_flow_t;
@@ -388,14 +388,14 @@ architecture rtl of mutrig_ctrl is
     
     signal modifier_start,modifier_done			: std_logic;
     signal modifier_writeback_done				: std_logic;
-    signal current_modifier_ch					: natural range 0 to 31; 
+    signal modifier_current_ch					: natural range 0 to 31; 
     signal modifier_read_word_cnt				: natural range 0 to 2;
     type original_data_t is array(0 to 1) of std_logic_vector(31 downto 0);
     signal original_data						: original_data_t;
     signal mod_mem_dout_ready					: std_logic;
     signal modifier_mod_done					: std_logic;
     
-    signal current_tth,current_tth_flip			: std_logic_vector(5 downto 0);
+    signal tsa_current_th,tsa_current_th_flip			: std_logic_vector(5 downto 0);
     signal modifier_wr_back_data				: std_logic_vector(31 downto 0);
     signal modifier_wr_back_addr				: std_logic_vector(MEMORY_ADDR_WIDTH-1 downto 0);
     signal modifier_wr_back_valid				: std_logic;
@@ -589,14 +589,14 @@ begin
         wrfull	 		=> open
     );
     
-    gen_flip_tth_bits : for i in 0 to current_tth_flip'high generate
-        current_tth_flip(i)		<= current_tth(current_tth_flip'high-i);
+    gen_flip_tth_bits : for i in 0 to tsa_current_th_flip'high generate
+        tsa_current_th_flip(i)		<= tsa_current_th(tsa_current_th_flip'high-i);
     end generate gen_flip_tth_bits;
     
     wr_bk_mask : entity work.write_mask_gen 
     port map(
         ingress			=> original_data(modifier_write_word_cnt),
-        modifying_bits	=> current_tth_flip,
+        modifying_bits	=> tsa_current_th_flip,
         selection		=> wr_bk_mask_lsb_loc,
         egress			=> original_data_modified
     );
@@ -611,44 +611,63 @@ begin
     --																		
     --=============================================================================																
 
-    proc_tth_scan_automation : process (cclk,i_rst)
-    -- the central state machine which performs the tthreshold scan automation routine
+    proc_th_scan_automation : process (cclk,i_rst)
+    -- the central state machine which performs the threshold scan automation routine
     -- it commands modifier, config writer and rate monitor in a given sequence. 
     begin
         if (i_rst = '1') then
-            tth_scan_automation_state		<= IDLE;
-            controller_busy_1				<= '0';
-            current_tth						<= (others => '0');
-            modifier_start					<= '0';
-            ccfg_writer_start_1				<= '0';
-            monitor_start					<= '0';
-            csr.status						<= (others => '0');
-            rpc.done_1						<= '0';
-            asic_id_update_req				<= '0';
-            asic_id_reset_req				<= '0';
+            scan_automation_state           <= IDLE;
+            controller_busy_1               <= '0';
+            tsa_current_th                  <= (others => '0'); -- iterator for routine, 0 to 63. exit or idle with 0.
+            modifier_start                  <= '0';
+            ccfg_writer_start_1             <= '0';
+            monitor_start                   <= '0';
+            csr.status                      <= (others => '0');
+            rpc.done_1                      <= '0';
+            asic_id_update_req	            <= '0';
+            asic_id_reset_req               <= '0';
         elsif (rising_edge(cclk)) then
-            case tth_scan_automation_state is 
+            case scan_automation_state is 
                 when IDLE =>
-                    if (rpc.start = '1' and (rpc.command = CMD_MUTRIG_ASIC_TTH_SCAN or rpc.command = CMD_MUTRIG_ASIC_TTH_SCAN_ALL) and rpc.done_1 = '0') then
-                        tth_scan_automation_state		<= MOD_TTH; 
-                        controller_busy_1				<= '1';
-                        csr.status						<= conv_std_logic_vector(to_integer(unsigned(current_tth)), csr.status'length); -- init TSA progress bar
-                    else
-                        -- otherwise ignore
+                    if (rpc.start = '1' and rpc.done_1 = '0') then -- rpc call : digest for command
+                        if (rpc.command = CMD_MUTRIG_ASIC_TTH_SCAN_ALL) then -- t-threshold scan routine
+                            scan_automation_state           <= MOD_TTH; 
+                        elsif (rpc.command = CMD_MUTRIG_ASIC_ETH_SCAN_ALL) then -- e-threshold scan routine
+                            scan_automation_state           <= MOD_ETH;
+                        else -- bad command : abort
+                            scan_automation_state           <= EVALUATION; -- in this state we can terminate the routine
+                            tsa_current_th                  <= std_logic_vector(to_unsigned(63,tsa_current_th'length)); -- signaling for finished
+                        end if;
+                        controller_busy_1               <= '1';
+                        csr.status                      <= conv_std_logic_vector(to_integer(unsigned(tsa_current_th)), csr.status'length); -- init TSA progress bar
+                    else -- ignore new toggles
                     end if;
-                when MOD_TTH =>
-                    asic_id_update_req				<= '0';
+
+                when MOD_TTH => -- modify t-threshold
+                    asic_id_update_req              <= '0'; -- unset the flag from CFG state
                     if (modifier_done = '0' and modifier_start = '0') then -- start modifier sub-routine
-                        modifier_start		<= '1';
+                        modifier_start                  <= '1';
                     elsif (modifier_done = '0' and modifier_start = '1') then -- wait modifier to ack start signal
                         -- wait
                     elsif (modifier_done = '1' and modifier_start = '1') then -- task finished 
-                        modifier_start		<= '0';
-                        tth_scan_automation_state		<= CFG;
+                        modifier_start                  <= '0';
+                        scan_automation_state           <= CFG;
                     else -- wait for modifier to ack the finish signal
-                        
                     end if;
-                when CFG =>
+
+                when MOD_ETH => -- modify e-threshold
+                    asic_id_update_req              <= '0'; -- unset the flag from CFG state
+                    if (modifier_done = '0' and modifier_start = '0') then -- start modifier sub-routine
+                        modifier_start                  <= '1';
+                    elsif (modifier_done = '0' and modifier_start = '1') then -- wait modifier to ack start signal
+                        -- wait
+                    elsif (modifier_done = '1' and modifier_start = '1') then -- task finished 
+                        modifier_start                  <= '0';
+                        scan_automation_state           <= CFG;
+                    else -- wait for modifier to ack the finish signal
+                    end if;
+
+                when CFG => -- configure mutrigs one-by-one
                     if (cconfig_state.done = '0' and ccfg_writer_start_1 = '0') then -- start writer sub-routine
                         ccfg_writer_start_1				<= '1';
                     elsif (cconfig_state.done = '0' and ccfg_writer_start_1 = '1') then
@@ -656,58 +675,65 @@ begin
                     elsif (cconfig_state.done = '1' and ccfg_writer_start_1 = '1') then -- ack the cfg is done
                         ccfg_writer_start_1 			<= '0'; -- TODO: get the error infos from config writer
                         case rpc.command is -- add support for iterating the tth incr for all mutrigs
-                            when CMD_MUTRIG_ASIC_TTH_SCAN =>
-                                tth_scan_automation_state		<= MONITOR_RATE;
                             when CMD_MUTRIG_ASIC_TTH_SCAN_ALL =>
-                                if (to_integer(unsigned(rpc.asic_id)) < N_MUTRIG) then
-                                    asic_id_update_req				<= '1'; -- solves contention with intpr -- should be high for only 1 cycle!
-                                    tth_scan_automation_state		<= MOD_TTH;
+                                if (unsigned(rpc.asic_id) < to_unsigned(N_MUTRIG-1,rpc.asic_id'length)) then -- fix: it was from 0 to 8 (reconfig asic 0; still works, but dirty), now it should be 0 to 7
+                                    asic_id_update_req              <= '1'; -- solves contention with intpr -- should be high for only 1 cycle!
+                                    scan_automation_state           <= MOD_TTH;
                                 else
-                                    asic_id_reset_req				<= '1';
-                                    tth_scan_automation_state		<= MONITOR_RATE;	
+                                    asic_id_reset_req               <= '1';
+                                    scan_automation_state           <= MONITOR_RATE;	
+                                end if;
+                            when CMD_MUTRIG_ASIC_ETH_SCAN_ALL =>
+                                if (unsigned(rpc.asic_id) < to_unsigned(N_MUTRIG-1,rpc.asic_id'length)) then 
+                                    asic_id_update_req              <= '1';
+                                    scan_automation_state           <= MOD_ETH;
+                                else 
+                                    asic_id_reset_req               <= '1';
+                                    scan_automation_state           <= MONITOR_RATE;	
                                 end if;
                             when others =>
                         end case;
                     else -- 1/0, config writer needs to ack, do nothing on this side
-                        
                     end if;
                         
-                when MONITOR_RATE => 
-                    asic_id_reset_req				<= '0';
+                when MONITOR_RATE => -- read the ch rate counter, sclr, wait for 1s, burst read
+                    asic_id_reset_req               <= '0';
                     if (monitor_done = '0' and monitor_start = '0') then -- start monitor sub-routine
-                        monitor_start		<= '1';
+                        monitor_start		            <= '1';
                     elsif (monitor_done = '0' and monitor_start = '1') then
                         -- wait monitor done
                     elsif (monitor_done = '1' and monitor_start = '1') then -- ack the monitor
-                        monitor_start					<= '0';
-                        tth_scan_automation_state		<= EVALUATION;
+                        monitor_start                   <= '0';
+                        scan_automation_state           <= EVALUATION;
                     else -- monitor needs to ack, do nothing no this side
-                        
                     end if;
+
                 when EVALUATION =>
-                    csr.status				<= conv_std_logic_vector(to_integer(unsigned(current_tth)), csr.status'length); -- update TSA progress bar
-                    if (to_integer(unsigned(current_tth)) < 63) then 
-                        current_tth						<= conv_std_logic_vector(to_integer(unsigned(current_tth))+1, current_tth'length);
-                        tth_scan_automation_state		<= MOD_TTH;
+                    if (to_integer(unsigned(tsa_current_th)) < 63) then 
+                        tsa_current_th                  <= conv_std_logic_vector(to_integer(unsigned(tsa_current_th)) + 1, tsa_current_th'length); -- incr step
+                        csr.status                      <= conv_std_logic_vector(to_integer(unsigned(tsa_current_th)) + 1, csr.status'length); -- update TSA progress bar, fix : it was delayed by a round
+                        scan_automation_state           <= MOD_TTH;
                     else -- =========== exit of TSA routine =============
                         if (rpc.done_1 = '0' and rpc.start = '1') then -- send ack back to irq
-                            rpc.done_1			<= '1';
+                            rpc.done_1                      <= '1';
                         elsif (rpc.done_1 = '1' and rpc.start = '0') then -- rpc ack it
-                            rpc.done_1					<= '0';
+                            rpc.done_1                      <= '0';
                         elsif (rpc.done_1 = '1' and rpc.start = '1') then -- wait for rpc to ack
                             -- do nothing on this side
-                        else 
-                            tth_scan_automation_state	<= IDLE; 
+                        else -- fully done : start=0, done=0
+                            scan_automation_state           <= IDLE; 
                             -- reset everything here
-                            current_tth					<= (others => '0');
-                            controller_busy_1			<= '0';
+                            tsa_current_th                  <= (others => '0');
+                            controller_busy_1               <= '0';
+                            csr.status                      <= (others => '0');
                             -- ...
                         end if;
                     end if;
+
                 when others =>
-                    tth_scan_automation_state	<= IDLE; 
+                    scan_automation_state	        <= IDLE; 
                     controller_busy_1				<= '0';
-                    current_tth						<= (others => '0');
+                    tsa_current_th					<= (others => '0');
                     modifier_start					<= '0';
                     ccfg_writer_start_1				<= '0';
                     monitor_start					<= '0';
@@ -715,7 +741,7 @@ begin
                     rpc.done_1						<= '0';
             end case;
         end if;
-    end process proc_tth_scan_automation;
+    end process;
     
     
     
@@ -738,7 +764,7 @@ begin
     begin
         if (i_rst = '1') then
             modifier_flow			<= IDLE;
-            current_modifier_ch		<= 0;
+            modifier_current_ch		<= 0;
             updated_ch				<= '0';
             modifier_done			<= '0';
             modifier_mod_done		<= '0';
@@ -757,144 +783,252 @@ begin
                     elsif (modifier_start = '0' and modifier_done = '1') then -- reset things after the ack is received
                         modifier_done			<= '0';
                         -- reset
-                        current_modifier_ch		<= 0;
+                        modifier_current_ch		<= 0;
                         updated_ch				<= '0';
                     else -- idle 
                         -- init
-                        current_modifier_ch		<= 0;
+                        modifier_current_ch		<= 0;
                         updated_ch				<= '0'; -- NOTE: counting from 0 to 31, otherwise is 1 to 31
                     end if;
-                when READ32 =>
-                    -- update the current channel selection and tth value 
-                    if (current_modifier_ch < 32 and updated_ch = '0') then
-                        current_modifier_ch		<= current_modifier_ch + 1;
-                        updated_ch				<= '1';
-                    else
-                        current_modifier_ch		<= current_modifier_ch;
-                    end if;
-                    -- start read when the selected channel is correct
-                    if (updated_ch = '1') then
-                        if (derived_tth_read_word_cnt(current_modifier_ch) = modifier_read_word_cnt) then -- exit
-                            modifier_flow			<= MODIFY;
-                            -- reset
-                            updated_ch				<= '0';
-                            modifier_read_word_cnt	<= 0;
-                        elsif (modifier_read_word_cnt < derived_tth_read_word_cnt(current_modifier_ch)) then
-                        -- latch word 0 to 1
-                            if (mod_mem_dout_ready = '1') then -- latched data
-                                original_data(modifier_read_word_cnt)		<= mod_mem_dout;
-                                modifier_read_word_cnt						<= modifier_read_word_cnt + 1;
-                            else
-                                -- wait for address to settle
-                            end if;	
-                        end if;
-                    end if;
-                when MODIFY	=>
-                    if (modifier_mod_done = '1') then -- exit
-                        modifier_flow		<= WRITE32;
-                        -- reset
-                        modifier_mod_done			<= '0';
-                        modifier_write_word_cnt		<= 0;
-                    else
-                        -- modify the words
-                        if (derived_tth_read_word_cnt(current_modifier_ch) = 1) then -- no crossing words
-                            original_data(0)		<= original_data_modified;
-                            modifier_mod_done		<= '1';
-                        else -- crossing two words
-                            if (modifier_write_word_cnt = 0) then
-                                original_data(0)			<= original_data_modified;
-                                modifier_write_word_cnt		<= modifier_write_word_cnt + 1;
-                            else
-                                modifier_mod_done			<= '1';
-                                original_data(1)			<= original_data_modified;
+
+                when READ32 => -- read the config ram for last configuration, targeting the bit field (read the whole words) of tth of each ch
+                    case rpc.command is 
+                        when CMD_MUTRIG_ASIC_TTH_SCAN_ALL => -- update the current channel selection and tth/eth value 
+                            -- flip : incr ch iterator
+                            if (modifier_current_ch < 32 and updated_ch = '0') then
+                                modifier_current_ch         <= modifier_current_ch + 1;
+                                updated_ch                  <= '1';
                             end if;
-                            
-                        end if;
-                        
-                    end if;
-                when WRITE32 =>
-                    if (modifier_writeback_done = '1') then -- exit
-                        modifier_writeback_done	<= '0';
-                        if (current_modifier_ch < 31) then -- loop back to READ32 for another channel, otherwise the modifier is done
-                            modifier_flow		<= READ32;
-                            -- reset ch related signals
-                            original_data		<= (others=>(others=>'0'));
-                        else -- =========== EXIT OF THE SUB-ROUTINE ================
-                            modifier_done		<= '1';
-                            -- reset all is in idle
-                            modifier_flow		<= IDLE;
-                        end if;
-                    else
-                        -- write back to the cfg_mem
-                        if (derived_tth_read_word_cnt(current_modifier_ch) = 1) then -- no crossing words
-                            modifier_writeback_done		<= '1';
-                        else -- crossing two words
-                            if (wb_word_cnt = 0) then
-                                wb_word_cnt				<= wb_word_cnt + 1;	
-                            else
-                                modifier_writeback_done	<= '1';
-                                -- reset
-                                wb_word_cnt				<= 0;
+                            -- flop : read words containing tth of this ch
+                            if (updated_ch = '1') then
+                                if (derived_tth_read_word_cnt(modifier_current_ch) = modifier_read_word_cnt) then -- exit
+                                    modifier_flow               <= MODIFY;
+                                    -- reset
+                                    updated_ch	                <= '0';
+                                    modifier_read_word_cnt      <= 0;
+                                elsif (modifier_read_word_cnt < derived_tth_read_word_cnt(modifier_current_ch)) then
+                                    -- latch word 0 to 1
+                                    if (mod_mem_dout_ready = '1') then -- latched data, with 1 cycle delay
+                                        original_data(modifier_read_word_cnt)       <= mod_mem_dout;
+                                        modifier_read_word_cnt                      <= modifier_read_word_cnt + 1; -- incr counter
+                                    end if;	
+                                end if;
                             end if;
-                        end if;
+                        when CMD_MUTRIG_ASIC_ETH_SCAN_ALL =>
+                            -- flip : incr ch iterator
+                            if (modifier_current_ch < 32 and updated_ch = '0') then
+                                modifier_current_ch         <= modifier_current_ch + 1;
+                                updated_ch                  <= '1';
+                            end if;
+                            -- flop : read words containing eth of this ch
+                            if (updated_ch = '1') then
+                                if (derived_eth_read_word_cnt(modifier_current_ch) = modifier_read_word_cnt) then -- exit
+                                    modifier_flow               <= MODIFY;
+                                    -- reset
+                                    updated_ch	                <= '0';
+                                    modifier_read_word_cnt      <= 0;
+                                elsif (modifier_read_word_cnt < derived_eth_read_word_cnt(modifier_current_ch)) then
+                                    -- latch word 0 to 1
+                                    if (mod_mem_dout_ready = '1') then -- latched data, with 1 cycle delay
+                                        original_data(modifier_read_word_cnt)       <= mod_mem_dout;
+                                        modifier_read_word_cnt                      <= modifier_read_word_cnt + 1; -- incr counter
+                                    end if;	
+                                end if;
+                            end if;
+                        when others => 
+                    end case;
+
+                when MODIFY	=> -- modify the bit field of tth/eth of each ch with current (latch result from write_mask_gen, which handles bit inversion and dynamic ranges)
+                    if (modifier_mod_done = '0') then -- modify the words
+                        case rpc.command is 
+                            when CMD_MUTRIG_ASIC_TTH_SCAN_ALL =>      
+                                if (derived_tth_read_word_cnt(modifier_current_ch) = 1) then -- no crossing words
+                                    original_data(0)        <= original_data_modified;
+                                    modifier_mod_done       <= '1';
+                                else -- crossing two words
+                                    if (modifier_write_word_cnt = 0) then
+                                        original_data(0)            <= original_data_modified;
+                                        modifier_write_word_cnt     <= modifier_write_word_cnt + 1;
+                                    else
+                                        modifier_mod_done           <= '1';
+                                        original_data(1)            <= original_data_modified;
+                                    end if;
+                                end if;
+                            when CMD_MUTRIG_ASIC_ETH_SCAN_ALL =>
+                                if (derived_eth_read_word_cnt(modifier_current_ch) = 1) then -- no crossing words
+                                    original_data(0)        <= original_data_modified;
+                                    modifier_mod_done       <= '1';
+                                else -- crossing two words
+                                    if (modifier_write_word_cnt = 0) then
+                                        original_data(0)            <= original_data_modified;
+                                        modifier_write_word_cnt     <= modifier_write_word_cnt + 1;
+                                    else
+                                        modifier_mod_done           <= '1';
+                                        original_data(1)            <= original_data_modified;
+                                    end if;
+                                end if;
+                            when others =>
+                        end case;
+                    else -- exit and reset
+                        modifier_flow               <= WRITE32;
+                        modifier_mod_done           <= '0';
+                        modifier_write_word_cnt     <= 0;
                     end if;
+
+                when WRITE32 => -- write 32-bit word back to mod ram
+                    case rpc.command is 
+                        when CMD_MUTRIG_ASIC_TTH_SCAN_ALL =>  
+                            if (modifier_writeback_done = '0') then 
+                                -- write back to the cfg_mem
+                                if (derived_tth_read_word_cnt(modifier_current_ch) = 1) then -- no crossing words
+                                    modifier_writeback_done     <= '1';
+                                else -- crossing two words
+                                    if (wb_word_cnt = 0) then
+                                        wb_word_cnt                 <= wb_word_cnt + 1;	
+                                    else -- reset
+                                        modifier_writeback_done     <= '1';
+                                        wb_word_cnt                 <= 0;
+                                    end if;
+                                end if;
+                            else -- exit
+                                modifier_writeback_done     <= '0';
+                                if (modifier_current_ch < 31) then -- loop back to READ32 for another channel, otherwise the modifier is done
+                                    modifier_flow           <= READ32; 
+                                    original_data           <= (others=>(others=>'0')); -- reset ch related signals
+                                else -- =========== EXIT OF THE SUB-ROUTINE ================
+                                    modifier_done           <= '1'; 
+                                    modifier_flow           <= IDLE; -- reset will be in idle
+                                end if;
+                            end if;
+                        when CMD_MUTRIG_ASIC_ETH_SCAN_ALL =>
+                            if (modifier_writeback_done = '0') then 
+                                -- write back to the cfg_mem
+                                if (derived_eth_read_word_cnt(modifier_current_ch) = 1) then -- no crossing words
+                                    modifier_writeback_done     <= '1';
+                                else -- crossing two words
+                                    if (wb_word_cnt = 0) then
+                                        wb_word_cnt                 <= wb_word_cnt + 1;	
+                                    else -- reset
+                                        modifier_writeback_done     <= '1';
+                                        wb_word_cnt                 <= 0;
+                                    end if;
+                                end if;
+                            else -- exit
+                                modifier_writeback_done     <= '0';
+                                if (modifier_current_ch < 31) then -- loop back to READ32 for another channel, otherwise the modifier is done
+                                    modifier_flow               <= READ32;
+                                    original_data               <= (others=>(others=>'0')); -- reset ch related signals
+                                else -- =========== EXIT OF THE SUB-ROUTINE ================
+                                    modifier_done               <= '1';
+                                    modifier_flow               <= IDLE; -- reset will be in idle
+                                end if;
+                            end if;
+                        when others =>
+                    end case;
+
                 when others =>
-                    modifier_flow			<= IDLE;
-                    current_modifier_ch		<= 0;
-                    updated_ch				<= '0';
-                    modifier_done			<= '0';
-                    modifier_mod_done		<= '0';
-                    modifier_writeback_done	<= '0';
-                    wb_word_cnt				<= 0;
+                    modifier_flow               <= IDLE;
+                    modifier_current_ch         <= 0;
+                    updated_ch                  <= '0';
+                    modifier_done               <= '0';
+                    modifier_mod_done           <= '0';
+                    modifier_writeback_done     <= '0';
+                    wb_word_cnt                 <= 0;
             end case;
         end if;
-    end process proc_pattern_modifier;
+    end process;
     
     
     proc_pattern_modifier_comb : process (all)
     begin
-        mod_mem_rdaddr				<= conv_std_logic_vector(derived_tth_location_word(current_modifier_ch) + modifier_read_word_cnt + to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD, mod_mem_rdaddr'length); 
+        -- modify 
+        -- conn. 
+        -- mod ram - rdaddr >
+        case rpc.command is 
+            when CMD_MUTRIG_ASIC_TTH_SCAN_ALL =>
+                mod_mem_rdaddr              <= conv_std_logic_vector(derived_tth_location_word(modifier_current_ch) + modifier_read_word_cnt + to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD, mod_mem_rdaddr'length); 
+            when others =>
+                mod_mem_rdaddr              <= conv_std_logic_vector(derived_eth_location_word(modifier_current_ch) + modifier_read_word_cnt + to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD, mod_mem_rdaddr'length); 
+        end case;
+        
         if (mod_mem_rdaddr_d1 = mod_mem_rdaddr) then
             mod_mem_dout_ready		<= '1';
         else 
             mod_mem_dout_ready		<= '0';
         end if;
-        case modifier_flow is 
-            when WRITE32 =>
-                if (modifier_writeback_done = '1') then
-                    modifier_wr_back_data	<= (others=>'0');
-                    modifier_wr_back_addr	<= (others=>'0');
-                    modifier_wr_back_valid	<= '0';
-                else
-                    if (derived_tth_read_word_cnt(current_modifier_ch) = 1) then -- no crossing words
-                        modifier_wr_back_data	<= original_data(0);
-                        modifier_wr_back_addr	<= conv_std_logic_vector(derived_tth_location_word(current_modifier_ch)+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
-                        modifier_wr_back_valid	<= '1';
-                    else -- crossing two words
-                        if (wb_word_cnt = 0) then
-                            modifier_wr_back_data	<= original_data(0);
-                            modifier_wr_back_addr	<= conv_std_logic_vector(derived_tth_location_word(current_modifier_ch)+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
-                            modifier_wr_back_valid	<= '1';
-                        else 
-                            modifier_wr_back_data	<= original_data(1);
-                            modifier_wr_back_addr	<= conv_std_logic_vector(derived_tth_location_word(current_modifier_ch)+1+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
-                            modifier_wr_back_valid	<= '1';
+
+        -- write back
+        -- conn.
+        -- wr_back port > cfg ram - port a
+        modifier_wr_back_data	<= (others=>'0');
+        modifier_wr_back_addr	<= (others=>'0');
+        modifier_wr_back_valid	<= '0';
+
+        case rpc.command is 
+            when CMD_MUTRIG_ASIC_TTH_SCAN_ALL =>
+                case modifier_flow is 
+                    when WRITE32 =>
+                        if (modifier_writeback_done = '0') then
+                            if (derived_tth_read_word_cnt(modifier_current_ch) = 1) then -- no crossing words
+                                modifier_wr_back_data	<= original_data(0);
+                                modifier_wr_back_addr	<= conv_std_logic_vector(derived_tth_location_word(modifier_current_ch)+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
+                                modifier_wr_back_valid	<= '1';
+                            else -- crossing two words
+                                if (wb_word_cnt = 0) then
+                                    modifier_wr_back_data	<= original_data(0);
+                                    modifier_wr_back_addr	<= conv_std_logic_vector(derived_tth_location_word(modifier_current_ch)+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
+                                    modifier_wr_back_valid	<= '1';
+                                else 
+                                    modifier_wr_back_data	<= original_data(1);
+                                    modifier_wr_back_addr	<= conv_std_logic_vector(derived_tth_location_word(modifier_current_ch)+1+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
+                                    modifier_wr_back_valid	<= '1';
+                                end if;
+                            end if;
                         end if;
-                    end if;
-                end if;
+                    when others =>    
+                end case;
             when others =>
-                modifier_wr_back_data	<= (others=>'0');
-                modifier_wr_back_addr	<= (others=>'0');
-                modifier_wr_back_valid	<= '0';
+                case modifier_flow is 
+                    when WRITE32 =>
+                        if (modifier_writeback_done = '0') then
+                            if (derived_eth_read_word_cnt(modifier_current_ch) = 1) then -- no crossing words
+                                modifier_wr_back_data	<= original_data(0);
+                                modifier_wr_back_addr	<= conv_std_logic_vector(derived_eth_location_word(modifier_current_ch)+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
+                                modifier_wr_back_valid	<= '1';
+                            else -- crossing two words
+                                if (wb_word_cnt = 0) then
+                                    modifier_wr_back_data	<= original_data(0);
+                                    modifier_wr_back_addr	<= conv_std_logic_vector(derived_eth_location_word(modifier_current_ch)+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
+                                    modifier_wr_back_valid	<= '1';
+                                else 
+                                    modifier_wr_back_data	<= original_data(1);
+                                    modifier_wr_back_addr	<= conv_std_logic_vector(derived_eth_location_word(modifier_current_ch)+1+to_integer(unsigned(rpc.asic_id))*CFG_MEM_PARTITION_SIZE_WORD,modifier_wr_back_addr'length);
+                                    modifier_wr_back_valid	<= '1';
+                                end if;
+                            end if;
+                        end if;
+                    when others =>    
+                end case;
         end case;
         modifier_wr_back_en			<= modifier_wr_back_valid;
         
-        if (modifier_write_word_cnt = 0) then
-            wr_bk_mask_lsb_loc		<= std_logic_vector(to_signed(derived_tth_bit_mod(current_modifier_ch),wr_bk_mask_lsb_loc'length));
-        else 
-            wr_bk_mask_lsb_loc		<= std_logic_vector(to_signed(derived_tth_bit_mod_enduf(current_modifier_ch),wr_bk_mask_lsb_loc'length));
-        end if;
-    end process proc_pattern_modifier_comb;
+        -- conn.
+        -- wr_bk - lsb_loc >
+        case rpc.command is 
+            when CMD_MUTRIG_ASIC_TTH_SCAN_ALL =>
+                if (modifier_write_word_cnt = 0) then
+                    wr_bk_mask_lsb_loc		<= std_logic_vector(to_signed(derived_tth_bit_mod(modifier_current_ch),wr_bk_mask_lsb_loc'length));
+                else 
+                    wr_bk_mask_lsb_loc		<= std_logic_vector(to_signed(derived_tth_bit_mod_enduf(modifier_current_ch),wr_bk_mask_lsb_loc'length));
+                end if;
+            when others =>
+                if (modifier_write_word_cnt = 0) then
+                    wr_bk_mask_lsb_loc		<= std_logic_vector(to_signed(derived_eth_bit_mod(modifier_current_ch),wr_bk_mask_lsb_loc'length));
+                else 
+                    wr_bk_mask_lsb_loc		<= std_logic_vector(to_signed(derived_eth_bit_mod_enduf(modifier_current_ch),wr_bk_mask_lsb_loc'length));
+                end if;
+        end case;
+    end process;
     
     
     --=============================================================================================================================================================
@@ -963,7 +1097,7 @@ begin
                             avm_cnt_read			<= '1';
                             avm_cnt_burstcount		<= conv_std_logic_vector(32, avm_cnt_burstcount'length); -- burst for one mutrig at each time,
                             -- NOTE: Large burst across slave boundary will not be auto segmented into small burst, do it manually
-                            -- the second time entrance: do nothing for the count
+                            -- the second time entrance : do nothing for the count
                             avm_cnt_address			<= conv_std_logic_vector(COUNTER_MM_ADDR_OFFSET_WORD+monitor_asic_cnt*32, avm_cnt_address'length);
                             cmd_posted				<= '1'; -- post at least one cycle
                             if (avm_cnt_waitrequest = '0' and cmd_posted = '1') then
@@ -972,8 +1106,8 @@ begin
                                 avm2counter_flow		<= RECEIVING_READDATA; 
                             end if;
                         when RECEIVING_READDATA => 
-                            -- receive the burst data
-                            if (monitor_read_word_cnt < 32 and monitor_asic_cnt < N_MUTRIG) then -- from 0 to 31
+                            if (monitor_read_word_cnt < 32 and monitor_asic_cnt < N_MUTRIG) then -- asic from 0 to 7, ch from 0 to 31
+                                -- receive the burst data : only bursts for 32 words (do not try to across slaves)
                                 if (avm_cnt_readdatavalid = '1') then 
                                     monitor_read_word_cnt		<= 	monitor_read_word_cnt + 1;
                                     slaveresponse_timeout_cnt	<= 0;
@@ -986,12 +1120,12 @@ begin
                                         avm_cnt_flush				<= '1';
                                     end if;
                                 end if;
-                            elsif (monitor_read_word_cnt = 32 and monitor_asic_cnt < N_MUTRIG-1) then  -- n_asic from 0 to 3
-                            -- post another cmd on avalon	
+                            elsif (monitor_read_word_cnt = 32 and monitor_asic_cnt < N_MUTRIG - 1) then  -- asic from 0 to 6, ch = 32 
+                                -- post another cmd on avalon	
                                 monitor_asic_cnt			<= monitor_asic_cnt + 1;
                                 avm2counter_flow			<= POSTING_CMD;
-                            elsif (monitor_read_word_cnt = 32 and monitor_asic_cnt = N_MUTRIG-1) then
-                            -- exit condition: tot read cnt is fulfilled asic=3;word=32
+                            elsif (monitor_read_word_cnt = 32 and monitor_asic_cnt = N_MUTRIG - 1) then -- asic = 7, ch = 32
+                                -- exit condition : tot read cnt is fulfilled asic=3;word=32
                                 avm2counter_flow			<= FINISHED;
                                 slaveresponse_timeout_cnt	<= 0;
                                 monitor_read_word_cnt		<= 0;
@@ -1052,7 +1186,7 @@ begin
         case monitor_flow is 
             -- receive the burst data
             when READ_RESULTS =>
-                result_mem_wraddr	<= conv_std_logic_vector( ((monitor_read_word_cnt+32*monitor_asic_cnt)*64)+to_integer(unsigned(current_tth)), result_mem_wraddr'length); --to_integer(unsigned(current_tth))) * to_integer(unsigned(rpc.asic_id)
+                result_mem_wraddr	<= conv_std_logic_vector( ((monitor_read_word_cnt+32*monitor_asic_cnt)*64)+to_integer(unsigned(tsa_current_th)), result_mem_wraddr'length); --to_integer(unsigned(tsa_current_th))) * to_integer(unsigned(rpc.asic_id)
                 result_mem_we		<= avm_cnt_readdatavalid;
                 result_mem_din		<= avm_cnt_readdata;
             when others =>
@@ -1126,7 +1260,7 @@ begin
             when others =>
                 csr_state		<= CONFLICT;
         end case;
-    end process proc_csr_fsm;
+    end process;
     
     proc_csr_irq	: process (cclk,i_rst) 
     -- Generate irq signal once the csr command has been written 
@@ -1149,7 +1283,7 @@ begin
                             if (controller_busy = '1') then 
                             -- MIDAS cpp software: poll this address for status
                             -- (31:16): 	0=finished, non-zero=busy
-                            -- (15:0):		when finished, 0=ok -1=err. when busy, =current_tth. -- TODO: add err from crc checking
+                            -- (15:0):		when finished, 0=ok -1=err. when busy, =tsa_current_th. -- TODO: add err from crc checking
                                 --avs_csr_readdata			<= (others => '1');
                                 avs_csr_readdata(31 downto 16)	<= csr.opcode(31 downto 16);
                                 avs_csr_readdata(15 downto 0)	<= csr.status;
@@ -1195,7 +1329,7 @@ begin
                     avs_csr_response					<= RSP_SLVERR;
             end case;
         end if;
-    end process proc_csr_irq;
+    end process;
     
     
     -- ===========================================================================================================================================================
@@ -1208,7 +1342,7 @@ begin
     --                                                                                                                                                           
     -- ===========================================================================================================================================================  
     
-    proc_INSTRUCTION_INTERPRETER : process(cclk,i_rst)
+    proc_instruc_intrp : process(cclk,i_rst)
     -- Digest the command if there is irq signal, be careful the irq is as short as one cycle
     -- issues the digested command to the mutrig configuration controller
     begin
@@ -1219,37 +1353,37 @@ begin
             rpc.cfglen		<= (others => '0');
         elsif (rising_edge(cclk)) then
             if (csr.written = '1' and rpc.done = '0' and controller_busy = '0') then -- start the main state machine
-                rpc.command		<= csr.opcode(31 downto 20);
-                rpc.asic_id		<= csr.opcode(19 downto 16);
-                rpc.cfglen		<= csr.opcode(15 downto 0);
-                rpc.start		<= '1';
+                rpc.command         <= csr.opcode(31 downto 20);
+                rpc.asic_id         <= csr.opcode(19 downto 16);
+                rpc.cfglen          <= csr.opcode(15 downto 0);
+                -- terminate the rpc 
+                -- 1) if the command is not found in the legal cmd list
+                -- 2) if MCC subroutine is not enabled 
+                if (csr.opcode(31 downto 20) = CMD_MUTRIG_ASIC_CFG 
+                    or csr.opcode(31 downto 20) = CMD_MUTRIG_ASIC_TTH_SCAN_ALL 
+                    or csr.opcode(31 downto 20) = CMD_MUTRIG_ASIC_ETH_SCAN_ALL) then 
+                    rpc.start           <= '1';
+                end if;
             elsif (asic_id_update_req = '1') then  -- update asic_id (only for the tsa all cmd)
-                rpc.asic_id		<= conv_std_logic_vector(to_integer(unsigned(rpc.asic_id)) + 1,rpc.asic_id'length);
+                rpc.asic_id         <= conv_std_logic_vector(to_integer(unsigned(rpc.asic_id)) + 1,rpc.asic_id'length);
             elsif (asic_id_reset_req = '1') then
-                rpc.asic_id		<= (others => '0');
+                rpc.asic_id         <= (others => '0');
             end if;
             if (rpc.start = '1' and rpc.done = '0' and controller_busy = '0') then -- main state machine is processing
-                rpc.start		<= '1'; -- TODO: when busy say something
+                rpc.start               <= '1'; -- TODO: when busy say something
             elsif (rpc.start = '1' and rpc.done = '1') then -- main state machine done, ack it, complete job
-                rpc.start		<= '0';
-            else
-                -- idle, ignore command is either of the two routine is busy
-            end if;
-            if ((rpc.start = '1' and rpc.command /= CMD_MUTRIG_ASIC_CFG and rpc.command /= CMD_MUTRIG_ASIC_TTH_SCAN) or EN_MCC /= true) then
-            -- terminate the rpc 
-            -- 1) if the command is not found in the legal cmd list
-            -- 2) if MCC subroutine is not enabled 
-                rpc.start	<= '0';
+                rpc.start               <= '0';
+            else -- idle, ignore command is either of the two routine is busy
             end if;
         end if;
-    end process proc_INSTRUCTION_INTERPRETER;
+    end process;
     
     
-    proc_contention_rpc_done : process (all)
+    proc_contention_rpc_comb : process (all)
     begin
-        rpc.done			<= rpc.done_0 or rpc.done_1;
-        controller_busy		<= controller_busy_0 or controller_busy_1;
-    end process proc_contention_rpc_done;
+        rpc.done                <= rpc.done_0 or rpc.done_1;
+        controller_busy         <= controller_busy_0 or controller_busy_1;
+    end process;
     
     
     -- =============================================================================================
