@@ -1,6 +1,9 @@
--- Quartus Prime VHDL Template
--- Simple Dual-Port RAM with different read/write addresses but
--- single read/write clock
+-- simple_dual_port_ram_single_clock.vhd
+-- Version : 24.0.816
+-- Date    : 20260330
+-- Change  : Use plain integer address ports so Questa does not collapse the
+--           generic-derived natural subtype at the mutrig_cfg_ctrl RAM
+--           boundary during full-system simulation.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -16,8 +19,8 @@ entity simple_dual_port_ram_single_clock is
 	port 
 	(
 		clk		: in std_logic;
-		raddr	: in natural range 0 to 2**ADDR_WIDTH - 1;
-		waddr	: in natural range 0 to 2**ADDR_WIDTH - 1;
+		raddr	: in integer := 0;
+		waddr	: in integer := 0;
 		data	: in std_logic_vector((DATA_WIDTH-1) downto 0);
 		we		: in std_logic := '1';
 		q		: out std_logic_vector((DATA_WIDTH -1) downto 0)

@@ -1,6 +1,6 @@
 
 # 
-# mutrig_controller "MuTRiG Controller" 
+# mutrig_cfg_ctrl "MuTRiG Controller"
 # Yifeng Wang 2024.08.16.16:25:06
 # 
 # 24.0.1028 - stable version of MuTRiG controller supporting both MCC and TTH scan
@@ -9,7 +9,7 @@
 ###########################################################
 # request TCL package from ACDS 16.1
 ###########################################################
-package require qsys 16.1
+package require -exact qsys 16.1
 
 
 ###########################################################
@@ -45,14 +45,14 @@ Performs SPI-configuration and threshold-scan of the MuTRiG ASIC. <br>
 	</ol>
 </ul>
 </html>"
-set_module_property NAME mutrig_controller2
-set_module_property VERSION 25.0.1021
+set_module_property NAME mutrig_cfg_ctrl
+set_module_property VERSION 24.0.816
 set_module_property INTERNAL false
 set_module_property OPAQUE_ADDRESS_MAP true
 set_module_property GROUP "Mu3e Control Plane/Modules"
 set_module_property AUTHOR "Yifeng Wang"
-set_module_property ICON_PATH ../figures/mu3e_logo.png
-set_module_property DISPLAY_NAME "MuTRiG Controller 2"
+set_module_property ICON_PATH ""
+set_module_property DISPLAY_NAME "MuTRiG Controller"
 set_module_property INSTANTIATE_IN_SYSTEM_MODULE true
 set_module_property EDITABLE false
 set_module_property REPORT_TO_TALKBACK false
@@ -286,184 +286,184 @@ add_display_item "SPI Setting" CPHA PARAMETER
 ########################################################### 
 # connection point spi
 ###########################################################
-add_interface spi conduit start
-set_interface_property spi associatedClock "spi_clock"
-set_interface_property spi associatedReset "spi_reset"
-set_interface_property spi ENABLED true
-set_interface_property spi EXPORT_OF ""
-set_interface_property spi PORT_NAME_MAP ""
-set_interface_property spi CMSIS_SVD_VARIABLES ""
-set_interface_property spi SVD_ADDRESS_GROUP ""
+add_interface spi_export2top conduit end
+set_interface_property spi_export2top associatedClock ""
+set_interface_property spi_export2top associatedReset ""
+set_interface_property spi_export2top ENABLED true
+set_interface_property spi_export2top EXPORT_OF ""
+set_interface_property spi_export2top PORT_NAME_MAP ""
+set_interface_property spi_export2top CMSIS_SVD_VARIABLES ""
+set_interface_property spi_export2top SVD_ADDRESS_GROUP ""
 
-add_interface_port spi spi_miso miso Input 1
-add_interface_port spi spi_mosi mosi Output 1
-add_interface_port spi spi_sclk sclk Output 1
-add_interface_port spi spi_ssn ssn Output 8
+add_interface_port spi_export2top spi_miso miso Input 1
+add_interface_port spi_export2top spi_mosi mosi Output 1
+add_interface_port spi_export2top spi_sclk sclk Output 1
+add_interface_port spi_export2top spi_ssn ssn Output 8
 
 
 ########################################################### 
 # connection point schpad
 ###########################################################  
-add_interface schpad avalon start
-set_interface_property schpad addressUnits WORDS
-set_interface_property schpad associatedClock controller_clock
-set_interface_property schpad associatedReset controller_reset
-set_interface_property schpad bitsPerSymbol 8
-set_interface_property schpad burstOnBurstBoundariesOnly false
-set_interface_property schpad burstcountUnits WORDS
-set_interface_property schpad doStreamReads false
-set_interface_property schpad doStreamWrites false
-set_interface_property schpad holdTime 0
-set_interface_property schpad linewrapBursts false
-set_interface_property schpad maximumPendingReadTransactions 1
-set_interface_property schpad maximumPendingWriteTransactions 0
-set_interface_property schpad readLatency 0
-set_interface_property schpad readWaitTime 1
-set_interface_property schpad setupTime 0
-set_interface_property schpad timingUnits Cycles
-set_interface_property schpad writeWaitTime 0
-set_interface_property schpad ENABLED true
-set_interface_property schpad EXPORT_OF ""
-set_interface_property schpad PORT_NAME_MAP ""
-set_interface_property schpad CMSIS_SVD_VARIABLES ""
-set_interface_property schpad SVD_ADDRESS_GROUP ""
+add_interface avmm_schpad avalon start
+set_interface_property avmm_schpad addressUnits WORDS
+set_interface_property avmm_schpad associatedClock controller_clock
+set_interface_property avmm_schpad associatedReset controller_reset
+set_interface_property avmm_schpad bitsPerSymbol 8
+set_interface_property avmm_schpad burstOnBurstBoundariesOnly false
+set_interface_property avmm_schpad burstcountUnits WORDS
+set_interface_property avmm_schpad doStreamReads false
+set_interface_property avmm_schpad doStreamWrites false
+set_interface_property avmm_schpad holdTime 0
+set_interface_property avmm_schpad linewrapBursts false
+set_interface_property avmm_schpad maximumPendingReadTransactions 1
+set_interface_property avmm_schpad maximumPendingWriteTransactions 0
+set_interface_property avmm_schpad readLatency 0
+set_interface_property avmm_schpad readWaitTime 1
+set_interface_property avmm_schpad setupTime 0
+set_interface_property avmm_schpad timingUnits Cycles
+set_interface_property avmm_schpad writeWaitTime 0
+set_interface_property avmm_schpad ENABLED true
+set_interface_property avmm_schpad EXPORT_OF ""
+set_interface_property avmm_schpad PORT_NAME_MAP ""
+set_interface_property avmm_schpad CMSIS_SVD_VARIABLES ""
+set_interface_property avmm_schpad SVD_ADDRESS_GROUP ""
 
-add_interface_port schpad avm_schpad_address address Output 16
-add_interface_port schpad avm_schpad_read read Output 1
-add_interface_port schpad avm_schpad_readdata readdata Input 32
-add_interface_port schpad avm_schpad_response response Input 2
-add_interface_port schpad avm_schpad_waitrequest waitrequest Input 1
-add_interface_port schpad avm_schpad_readdatavalid readdatavalid Input 1
-add_interface_port schpad avm_schpad_burstcount burstcount Output 8
+add_interface_port avmm_schpad avm_schpad_address address Output 10
+add_interface_port avmm_schpad avm_schpad_read read Output 1
+add_interface_port avmm_schpad avm_schpad_readdata readdata Input 32
+add_interface_port avmm_schpad avm_schpad_response response Input 2
+add_interface_port avmm_schpad avm_schpad_waitrequest waitrequest Input 1
+add_interface_port avmm_schpad avm_schpad_readdatavalid readdatavalid Input 1
+add_interface_port avmm_schpad avm_schpad_burstcount burstcount Output 8
 
 
 ########################################################### 
 # connection point csr
 ###########################################################  
-add_interface csr avalon end
-set_interface_property csr addressUnits WORDS
-set_interface_property csr associatedClock controller_clock
-set_interface_property csr associatedReset controller_reset
-set_interface_property csr bitsPerSymbol 8
-set_interface_property csr burstOnBurstBoundariesOnly false
-set_interface_property csr burstcountUnits WORDS
-set_interface_property csr explicitAddressSpan 0
-set_interface_property csr holdTime 0
-set_interface_property csr linewrapBursts false
-set_interface_property csr maximumPendingReadTransactions 0
-set_interface_property csr maximumPendingWriteTransactions 0
-set_interface_property csr readLatency 0
-set_interface_property csr readWaitTime 1
-set_interface_property csr setupTime 0
-set_interface_property csr timingUnits Cycles
-set_interface_property csr writeWaitTime 0
-set_interface_property csr ENABLED true
-set_interface_property csr EXPORT_OF ""
-set_interface_property csr PORT_NAME_MAP ""
-set_interface_property csr CMSIS_SVD_VARIABLES ""
-set_interface_property csr SVD_ADDRESS_GROUP ""
+add_interface avmm_csr avalon end
+set_interface_property avmm_csr addressUnits WORDS
+set_interface_property avmm_csr associatedClock controller_clock
+set_interface_property avmm_csr associatedReset controller_reset
+set_interface_property avmm_csr bitsPerSymbol 8
+set_interface_property avmm_csr burstOnBurstBoundariesOnly false
+set_interface_property avmm_csr burstcountUnits WORDS
+set_interface_property avmm_csr explicitAddressSpan 0
+set_interface_property avmm_csr holdTime 0
+set_interface_property avmm_csr linewrapBursts false
+set_interface_property avmm_csr maximumPendingReadTransactions 0
+set_interface_property avmm_csr maximumPendingWriteTransactions 0
+set_interface_property avmm_csr readLatency 0
+set_interface_property avmm_csr readWaitTime 1
+set_interface_property avmm_csr setupTime 0
+set_interface_property avmm_csr timingUnits Cycles
+set_interface_property avmm_csr writeWaitTime 0
+set_interface_property avmm_csr ENABLED true
+set_interface_property avmm_csr EXPORT_OF ""
+set_interface_property avmm_csr PORT_NAME_MAP ""
+set_interface_property avmm_csr CMSIS_SVD_VARIABLES ""
+set_interface_property avmm_csr SVD_ADDRESS_GROUP ""
 
-add_interface_port csr avs_csr_address address Input 2
-add_interface_port csr avs_csr_read read Input 1
-add_interface_port csr avs_csr_readdata readdata Output 32
-add_interface_port csr avs_csr_write write Input 1
-add_interface_port csr avs_csr_writedata writedata Input 32
-add_interface_port csr avs_csr_waitrequest waitrequest Output 1
-add_interface_port csr avs_csr_response response Output 2
-set_interface_assignment csr embeddedsw.configuration.isFlash 0
-set_interface_assignment csr embeddedsw.configuration.isMemoryDevice 0
-set_interface_assignment csr embeddedsw.configuration.isNonVolatileStorage 0
-set_interface_assignment csr embeddedsw.configuration.isPrintableDevice 0
+add_interface_port avmm_csr avs_csr_address address Input 2
+add_interface_port avmm_csr avs_csr_read read Input 1
+add_interface_port avmm_csr avs_csr_readdata readdata Output 32
+add_interface_port avmm_csr avs_csr_write write Input 1
+add_interface_port avmm_csr avs_csr_writedata writedata Input 32
+add_interface_port avmm_csr avs_csr_waitrequest waitrequest Output 1
+add_interface_port avmm_csr avs_csr_response response Output 2
+set_interface_assignment avmm_csr embeddedsw.configuration.isFlash 0
+set_interface_assignment avmm_csr embeddedsw.configuration.isMemoryDevice 0
+set_interface_assignment avmm_csr embeddedsw.configuration.isNonVolatileStorage 0
+set_interface_assignment avmm_csr embeddedsw.configuration.isPrintableDevice 0
 
 
 ########################################################### 
 # connection point counter
 ###########################################################  
-add_interface counter avalon start
-set_interface_property counter addressUnits WORDS
-set_interface_property counter associatedClock controller_clock
-set_interface_property counter associatedReset controller_reset
-set_interface_property counter bitsPerSymbol 8
-set_interface_property counter burstOnBurstBoundariesOnly false
-set_interface_property counter burstcountUnits WORDS
-set_interface_property counter doStreamReads false
-set_interface_property counter doStreamWrites false
-set_interface_property counter holdTime 0
-set_interface_property counter linewrapBursts false
-set_interface_property counter maximumPendingReadTransactions 0
-set_interface_property counter maximumPendingWriteTransactions 0
-set_interface_property counter readLatency 0
-set_interface_property counter readWaitTime 1
-set_interface_property counter setupTime 0
-set_interface_property counter timingUnits Cycles
-set_interface_property counter writeWaitTime 0
-set_interface_property counter ENABLED true
-set_interface_property counter EXPORT_OF ""
-set_interface_property counter PORT_NAME_MAP ""
-set_interface_property counter CMSIS_SVD_VARIABLES ""
-set_interface_property counter SVD_ADDRESS_GROUP ""
+add_interface avmm_cnt avalon start
+set_interface_property avmm_cnt addressUnits WORDS
+set_interface_property avmm_cnt associatedClock controller_clock
+set_interface_property avmm_cnt associatedReset controller_reset
+set_interface_property avmm_cnt bitsPerSymbol 8
+set_interface_property avmm_cnt burstOnBurstBoundariesOnly false
+set_interface_property avmm_cnt burstcountUnits WORDS
+set_interface_property avmm_cnt doStreamReads false
+set_interface_property avmm_cnt doStreamWrites false
+set_interface_property avmm_cnt holdTime 0
+set_interface_property avmm_cnt linewrapBursts false
+set_interface_property avmm_cnt maximumPendingReadTransactions 0
+set_interface_property avmm_cnt maximumPendingWriteTransactions 0
+set_interface_property avmm_cnt readLatency 0
+set_interface_property avmm_cnt readWaitTime 1
+set_interface_property avmm_cnt setupTime 0
+set_interface_property avmm_cnt timingUnits Cycles
+set_interface_property avmm_cnt writeWaitTime 0
+set_interface_property avmm_cnt ENABLED true
+set_interface_property avmm_cnt EXPORT_OF ""
+set_interface_property avmm_cnt PORT_NAME_MAP ""
+set_interface_property avmm_cnt CMSIS_SVD_VARIABLES ""
+set_interface_property avmm_cnt SVD_ADDRESS_GROUP ""
 
-add_interface_port counter avm_cnt_address address Output 16
-add_interface_port counter avm_cnt_read read Output 1
-add_interface_port counter avm_cnt_waitrequest waitrequest Input 1
-add_interface_port counter avm_cnt_burstcount burstcount Output 9
-add_interface_port counter avm_cnt_readdatavalid readdatavalid Input 1
-add_interface_port counter avm_cnt_response response Input 2
-add_interface_port counter avm_cnt_readdata readdata Input 32
-add_interface_port counter avm_cnt_flush flush Output 1
+add_interface_port avmm_cnt avm_cnt_address address Output 16
+add_interface_port avmm_cnt avm_cnt_read read Output 1
+add_interface_port avmm_cnt avm_cnt_waitrequest waitrequest Input 1
+add_interface_port avmm_cnt avm_cnt_burstcount burstcount Output 9
+add_interface_port avmm_cnt avm_cnt_readdatavalid readdatavalid Input 1
+add_interface_port avmm_cnt avm_cnt_response response Input 2
+add_interface_port avmm_cnt avm_cnt_readdata readdata Input 32
+add_interface_port avmm_cnt avm_cnt_flush flush Output 1
 
 
 ########################################################### 
 # connection point scan_result
 ###########################################################  
-add_interface scan_result avalon end
-set_interface_property scan_result addressUnits WORDS
-set_interface_property scan_result associatedClock controller_clock
-set_interface_property scan_result associatedReset controller_reset
-set_interface_property scan_result bitsPerSymbol 8
-set_interface_property scan_result burstOnBurstBoundariesOnly false
-set_interface_property scan_result burstcountUnits WORDS
-set_interface_property scan_result explicitAddressSpan 0
-set_interface_property scan_result holdTime 0
-set_interface_property scan_result linewrapBursts false
-set_interface_property scan_result maximumPendingReadTransactions 0
-set_interface_property scan_result maximumPendingWriteTransactions 0
-set_interface_property scan_result readLatency 0
-set_interface_property scan_result readWaitTime 1
-set_interface_property scan_result setupTime 0
-set_interface_property scan_result timingUnits Cycles
-set_interface_property scan_result writeWaitTime 0
-set_interface_property scan_result ENABLED true
-set_interface_property scan_result EXPORT_OF ""
-set_interface_property scan_result PORT_NAME_MAP ""
-set_interface_property scan_result CMSIS_SVD_VARIABLES ""
-set_interface_property scan_result SVD_ADDRESS_GROUP ""
+add_interface avmm_scanresult avalon end
+set_interface_property avmm_scanresult addressUnits WORDS
+set_interface_property avmm_scanresult associatedClock controller_clock
+set_interface_property avmm_scanresult associatedReset controller_reset
+set_interface_property avmm_scanresult bitsPerSymbol 8
+set_interface_property avmm_scanresult burstOnBurstBoundariesOnly false
+set_interface_property avmm_scanresult burstcountUnits WORDS
+set_interface_property avmm_scanresult explicitAddressSpan 0
+set_interface_property avmm_scanresult holdTime 0
+set_interface_property avmm_scanresult linewrapBursts false
+set_interface_property avmm_scanresult maximumPendingReadTransactions 0
+set_interface_property avmm_scanresult maximumPendingWriteTransactions 0
+set_interface_property avmm_scanresult readLatency 0
+set_interface_property avmm_scanresult readWaitTime 1
+set_interface_property avmm_scanresult setupTime 0
+set_interface_property avmm_scanresult timingUnits Cycles
+set_interface_property avmm_scanresult writeWaitTime 0
+set_interface_property avmm_scanresult ENABLED true
+set_interface_property avmm_scanresult EXPORT_OF ""
+set_interface_property avmm_scanresult PORT_NAME_MAP ""
+set_interface_property avmm_scanresult CMSIS_SVD_VARIABLES ""
+set_interface_property avmm_scanresult SVD_ADDRESS_GROUP ""
 
-add_interface_port scan_result avs_scanresult_address address Input 14
-add_interface_port scan_result avs_scanresult_read read Input 1
-add_interface_port scan_result avs_scanresult_readdata readdata Output 32
-add_interface_port scan_result avs_scanresult_waitrequest waitrequest Output 1
-set_interface_assignment scan_result embeddedsw.configuration.isFlash 0
-set_interface_assignment scan_result embeddedsw.configuration.isMemoryDevice 0
-set_interface_assignment scan_result embeddedsw.configuration.isNonVolatileStorage 0
-set_interface_assignment scan_result embeddedsw.configuration.isPrintableDevice 0
+add_interface_port avmm_scanresult avs_scanresult_address address Input 14
+add_interface_port avmm_scanresult avs_scanresult_read read Input 1
+add_interface_port avmm_scanresult avs_scanresult_readdata readdata Output 32
+add_interface_port avmm_scanresult avs_scanresult_waitrequest waitrequest Output 1
+set_interface_assignment avmm_scanresult embeddedsw.configuration.isFlash 0
+set_interface_assignment avmm_scanresult embeddedsw.configuration.isMemoryDevice 0
+set_interface_assignment avmm_scanresult embeddedsw.configuration.isNonVolatileStorage 0
+set_interface_assignment avmm_scanresult embeddedsw.configuration.isPrintableDevice 0
 
 
 ###########################################################  
 # connection point sclr_counter
 ########################################################### 
-add_interface sclr_counter reset start
-set_interface_property sclr_counter associatedClock controller_clock
-set_interface_property sclr_counter associatedDirectReset ""
-set_interface_property sclr_counter associatedResetSinks ""
-set_interface_property sclr_counter synchronousEdges BOTH
-set_interface_property sclr_counter ENABLED true
-set_interface_property sclr_counter EXPORT_OF ""
-set_interface_property sclr_counter PORT_NAME_MAP ""
-set_interface_property sclr_counter CMSIS_SVD_VARIABLES ""
-set_interface_property sclr_counter SVD_ADDRESS_GROUP ""
+add_interface sclr_counter_req reset start
+set_interface_property sclr_counter_req associatedClock controller_clock
+set_interface_property sclr_counter_req associatedDirectReset ""
+set_interface_property sclr_counter_req associatedResetSinks ""
+set_interface_property sclr_counter_req synchronousEdges DEASSERT
+set_interface_property sclr_counter_req ENABLED true
+set_interface_property sclr_counter_req EXPORT_OF ""
+set_interface_property sclr_counter_req PORT_NAME_MAP ""
+set_interface_property sclr_counter_req CMSIS_SVD_VARIABLES ""
+set_interface_property sclr_counter_req SVD_ADDRESS_GROUP ""
 
-add_interface_port sclr_counter rso_sclr_counter_reset reset Output 1
+add_interface_port sclr_counter_req o_sclr_req reset_req Output 1
 
 ########################################################### 
 # connection point controller_clock
@@ -476,7 +476,7 @@ set_interface_property controller_clock PORT_NAME_MAP ""
 set_interface_property controller_clock CMSIS_SVD_VARIABLES ""
 set_interface_property controller_clock SVD_ADDRESS_GROUP ""
 
-add_interface_port controller_clock csi_controller_clock_clk clk Input 1
+add_interface_port controller_clock i_clk clk Input 1
 
 
 ########################################################### 
@@ -504,7 +504,7 @@ set_interface_property spi_clock PORT_NAME_MAP ""
 set_interface_property spi_clock CMSIS_SVD_VARIABLES ""
 set_interface_property spi_clock SVD_ADDRESS_GROUP ""
 
-add_interface_port spi_clock csi_spi_clock_clk clk Input 1
+add_interface_port spi_clock i_clk_spi clk Input 1
 
 ########################################################### 
 # connection point spi_reset
@@ -548,30 +548,30 @@ proc my_elaborate {} {
 	# {"2:Use MCC and TSA" "1:Use MCC only" "0:Use TSA only"}
 	switch [get_parameter_value SEL_SUBROUTINES] {
 		"2" {
-			set_interface_property spi ENABLED true
-			set_interface_property schpad ENABLED true
-			set_interface_property counter ENABLED true
-			set_interface_property scan_result ENABLED true
-			set_interface_property sclr_counter ENABLED true
+			set_interface_property spi_export2top ENABLED true
+			set_interface_property avmm_schpad ENABLED true
+			set_interface_property avmm_cnt ENABLED true
+			set_interface_property avmm_scanresult ENABLED true
+			set_interface_property sclr_counter_req ENABLED true
 			set_parameter_value "EN_MCC" true
 			set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD ENABLED true
 		}
 		"1" {
-			set_interface_property spi ENABLED true
-			set_interface_property schpad ENABLED true
-			# mask counter, scan_result, sclr_counter ports
-			helper_terminate_avmm_interface counter
-			helper_terminate_avmm_interface scan_result
-			set_interface_property sclr_counter ENABLED false
+			set_interface_property spi_export2top ENABLED true
+			set_interface_property avmm_schpad ENABLED true
+			# mask avmm_cnt, avmm_scanresult, sclr_counter_req ports
+			helper_terminate_avmm_interface avmm_cnt
+			helper_terminate_avmm_interface avmm_scanresult
+			set_interface_property sclr_counter_req ENABLED false
 			set_parameter_value "EN_MCC" true
 			set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD ENABLED false
 		}
 		"0" {
-			set_interface_property spi ENABLED true
-			set_interface_property schpad ENABLED true
-			set_interface_property counter ENABLED true
-			set_interface_property scan_result ENABLED true
-			set_interface_property sclr_counter ENABLED true
+			set_interface_property spi_export2top ENABLED true
+			set_interface_property avmm_schpad ENABLED true
+			set_interface_property avmm_cnt ENABLED true
+			set_interface_property avmm_scanresult ENABLED true
+			set_interface_property sclr_counter_req ENABLED true
 			set_parameter_value "EN_MCC" false
 			set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD ENABLED true
 		}		
@@ -597,4 +597,3 @@ proc helper_terminate_avmm_interface {name} {
 	}
 	return 0
 }
-

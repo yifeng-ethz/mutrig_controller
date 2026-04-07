@@ -3,6 +3,8 @@
 -- =======================================
 -- Revision: 1.0 (file created)
 --		Date: Mar 11, 2024
+-- Revision: 1.1 (clamp signed selector into the implemented LUT range)
+--      Date: Mar 30, 2026
 -- =========
 -- Description:	[Write Mask Generator] 
 -- 		The ingress is the original data to be modified and the modifying bits to overwrite the data.
@@ -45,10 +47,14 @@ architecture rtl of write_mask_gen is
 	signal lut		: lut_t;
 	
 	signal selection_integer		: integer range -32 to 31;
+	signal selection_lut_index      : integer range -5 to 31;
 
 begin
 	
 	selection_integer	<= to_integer(signed(selection));
+    selection_lut_index <= -5 when selection_integer < -5 else
+                           31 when selection_integer > 31 else
+                           selection_integer;
 	--selection_integer	: integer range -5 to 31; -- 27 normal + 5 overflow + 5 underflow = 37 options 
 	-- [i+5 downto i]
 	gen_lut_array : for i in -5 to 31 generate 
@@ -80,7 +86,7 @@ begin
 	proc_main : process (all)
 	
 	begin
-		egress		<= lut(selection_integer);
+		egress		<= lut(selection_lut_index);
 		--egress		<= lut(sel_integer);
 	
 	
