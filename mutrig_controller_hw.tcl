@@ -15,36 +15,7 @@ package require -exact qsys 16.1
 ###########################################################
 # module mutrig_controller
 ###########################################################
-set_module_property DESCRIPTION \
-"<html>
-Performs SPI-configuration and threshold-scan of the MuTRiG ASIC. <br>
-<br>
-<b>MuTRiG Configuration Controller (MCC)</b>
-<ul>
-	<li> Handles MuTRiG configuration scheme. </li>
-	<li> Data must be loaded to the external scratch-pad RAM.</li>
-	<li> External master writes to CSR to initiate the configuration routine. </li> 
-	<li><b>Work Flow</b>:</li> 
-	<ol>
-		<li><i>data mover</i> performs DMA from <b>scratch-pad RAM</b> to asic dedicated <b>cfg-mem</b> </li>
-		<li><i>cfg writer</i> performs SPI write to MuTRiG from <b>cfg-mem</b></li>
-		<li><i>cfg writer</i> checks the SPI MISO as validation </li>
-	</ol>
-</ul>
-<br>
-<b>MuTRiG Threshold Scan Automation(TSA)</b>
-<ul>
-	<li> Performs T(cmd=0x0140_0000)/E(cmd=0170_0000)-Threshold scan of the selected MuTRiG(s). </li>
-	<li> External master writes to CSR to initiate the scan routine. </li>
-	<li> <b>Note!!!</b> The TTH scan uses the last configuration as a template when incrementing the TTH value. </li>
-	<li><b>Work Flow</b>:</li> 
-	<ol>
-		<li><i>pattern modifier</i> modifies the content in the cfg-mem </li>
-		<li><i>cfg writer</i> performs SPI write to MuTRiG from <b>cfg-mem</b></li>
-		<li><i>rate monitor</i> collects the rate from the external counters and stores result into result RAM </li>
-	</ol>
-</ul>
-</html>"
+set_module_property DESCRIPTION ""
 set_module_property NAME mutrig_cfg_ctrl
 set_module_property VERSION 24.0.816
 set_module_property INTERNAL false
@@ -88,7 +59,7 @@ add_fileset_file write_mask_gen.vhd VHDL PATH write_mask_gen.vhd
  # <br> = line break
 add_parameter N_MUTRIG NATURAL 
 set_parameter_property N_MUTRIG DEFAULT_VALUE 8
-set_parameter_property N_MUTRIG DISPLAY_NAME "Number of MuTRiG"
+set_parameter_property N_MUTRIG DISPLAY_NAME N_MUTRIG
 set_parameter_property N_MUTRIG TYPE NATURAL
 set_parameter_property N_MUTRIG UNITS None
 set_parameter_property N_MUTRIG ALLOWED_RANGES 1:128
@@ -104,6 +75,8 @@ set_parameter_property N_MUTRIG LONG_DESCRIPTION $dscpt
 add_parameter INTENDED_MUTRIG_VERSION STRING
 set_parameter_property INTENDED_MUTRIG_VERSION DEFAULT_VALUE "MuTRiG 3"
 set_parameter_property INTENDED_MUTRIG_VERSION DISPLAY_NAME "Intended MuTRiG variant"
+set_parameter_property INTENDED_MUTRIG_VERSION ENABLED false
+set_parameter_property INTENDED_MUTRIG_VERSION VISIBLE false
 set_parameter_property INTENDED_MUTRIG_VERSION TYPE STRING
 set_parameter_property INTENDED_MUTRIG_VERSION ALLOWED_RANGES {"MuTRiG 1" "MuTRiG 2" "MuTRiG 3"}
 set_parameter_property INTENDED_MUTRIG_VERSION UNITS None
@@ -120,9 +93,10 @@ set_parameter_property INTENDED_MUTRIG_VERSION LONG_DESCRIPTION $dscpt
 add_parameter MUTRIG_CFG_LENGTH_BIT NATURAL 2662 
 set_parameter_property MUTRIG_CFG_LENGTH_BIT DEFAULT_VALUE 2662
 set_parameter_property MUTRIG_CFG_LENGTH_BIT DISPLAY_NAME "MuTRiG configuration bitstream length"
+set_parameter_property MUTRIG_CFG_LENGTH_BIT VISIBLE false
 set_parameter_property MUTRIG_CFG_LENGTH_BIT WIDTH ""
 set_parameter_property MUTRIG_CFG_LENGTH_BIT TYPE NATURAL
-set_parameter_property MUTRIG_CFG_LENGTH_BIT ENABLED true
+set_parameter_property MUTRIG_CFG_LENGTH_BIT ENABLED false
 set_parameter_property MUTRIG_CFG_LENGTH_BIT UNITS Bits
 set_parameter_property MUTRIG_CFG_LENGTH_BIT ALLOWED_RANGES 0:1_000_000
 set_parameter_property MUTRIG_CFG_LENGTH_BIT HDL_PARAMETER true
@@ -170,7 +144,7 @@ set_parameter_property CPHA LONG_DESCRIPTION $dscpt
 
 add_parameter CLK_FREQUENCY NATURAL 156250000
 set_parameter_property CLK_FREQUENCY DEFAULT_VALUE 156250000
-set_parameter_property CLK_FREQUENCY DISPLAY_NAME "Reference clock rate"
+set_parameter_property CLK_FREQUENCY DISPLAY_NAME CLK_FREQUENCY
 set_parameter_property CLK_FREQUENCY TYPE NATURAL
 set_parameter_property CLK_FREQUENCY UNITS Hertz
 set_parameter_property CLK_FREQUENCY ALLOWED_RANGES 0:1_000_000_000
@@ -187,6 +161,8 @@ set_parameter_property CLK_FREQUENCY LONG_DESCRIPTION $dscpt
 add_parameter CLK_FREQUENCY_SPI NATURAL 
 set_parameter_property CLK_FREQUENCY_SPI DEFAULT_VALUE 40_000_000
 set_parameter_property CLK_FREQUENCY_SPI DISPLAY_NAME "SPI clock rate"
+set_parameter_property CLK_FREQUENCY_SPI ENABLED false
+set_parameter_property CLK_FREQUENCY_SPI VISIBLE false
 set_parameter_property CLK_FREQUENCY_SPI TYPE NATURAL
 set_parameter_property CLK_FREQUENCY_SPI UNITS Hertz
 set_parameter_property CLK_FREQUENCY_SPI ALLOWED_RANGES 0:80_000_000
@@ -202,8 +178,8 @@ set_parameter_property CLK_FREQUENCY_SPI DESCRIPTION $dscpt
 set_parameter_property CLK_FREQUENCY_SPI LONG_DESCRIPTION $dscpt
 
 add_parameter COUNTER_MM_ADDR_OFFSET_WORD NATURAL
-set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD DEFAULT_VALUE 0x0
-set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD DISPLAY_NAME "Base address of the performance counter"
+set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD DEFAULT_VALUE 0x8000
+set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD DISPLAY_NAME COUNTER_MM_ADDR_OFFSET_WORD
 set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD TYPE NATURAL
 set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD UNITS None
 set_parameter_property COUNTER_MM_ADDR_OFFSET_WORD ALLOWED_RANGES 0:2147483647
@@ -235,6 +211,8 @@ set_parameter_property DEBUG HDL_PARAMETER true
 add_parameter SEL_SUBROUTINES natural 
 set_parameter_property SEL_SUBROUTINES DEFAULT_VALUE 2
 set_parameter_property SEL_SUBROUTINES DISPLAY_NAME "Select the supported sub-routine"
+set_parameter_property SEL_SUBROUTINES ENABLED false
+set_parameter_property SEL_SUBROUTINES VISIBLE false
 set_parameter_property SEL_SUBROUTINES UNITS None
 set_parameter_property SEL_SUBROUTINES ALLOWED_RANGES {"2:Use MCC and TSA" "1:Use MCC only" "0:Use TSA only"}
 set_parameter_property SEL_SUBROUTINES DISPLAY_HINT "RADIO"
@@ -258,7 +236,8 @@ add_parameter EN_MCC boolean
 set_parameter_property EN_MCC VISIBLE false
 set_parameter_property EN_MCC DEFAULT_VALUE true
 set_parameter_property EN_MCC DISPLAY_NAME "Use MCC sub-routine"
-set_parameter_property EN_MCC HDL_PARAMETER true
+set_parameter_property EN_MCC ENABLED false
+set_parameter_property EN_MCC HDL_PARAMETER false
 set_parameter_property EN_MCC DERIVED true
 
 #######################################################
@@ -267,15 +246,11 @@ set_parameter_property EN_MCC DERIVED true
 # ----
 add_display_item "" "IP Setting" GROUP ""
 add_display_item "IP Setting" CLK_FREQUENCY PARAMETER 
-add_display_item "IP Setting" CLK_FREQUENCY_SPI PARAMETER 
 add_display_item "IP Setting" N_MUTRIG PARAMETER 
 add_display_item "IP Setting" COUNTER_MM_ADDR_OFFSET_WORD PARAMETER 
 add_display_item "IP Setting" DEBUG PARAMETER 
-add_display_item "IP Setting" SEL_SUBROUTINES PARAMETER
 # ----
 add_display_item "" "MuTRiG Setting" GROUP ""
-add_display_item "MuTRiG Setting" INTENDED_MUTRIG_VERSION PARAMETER 
-add_display_item "MuTRiG Setting" MUTRIG_CFG_LENGTH_BIT PARAMETER 
 add_display_item "MuTRiG Setting" "SPI Setting" GROUP ""
 # --
 add_display_item "SPI Setting" CPOL PARAMETER 
@@ -286,6 +261,31 @@ add_display_item "SPI Setting" CPHA PARAMETER
 ########################################################### 
 # connection point spi
 ###########################################################
+add_interface controller_clock clock end
+set_interface_property controller_clock clockRate 156250000
+set_interface_property controller_clock ENABLED true
+set_interface_property controller_clock EXPORT_OF ""
+set_interface_property controller_clock PORT_NAME_MAP ""
+set_interface_property controller_clock CMSIS_SVD_VARIABLES ""
+set_interface_property controller_clock SVD_ADDRESS_GROUP ""
+
+add_interface_port controller_clock i_clk clk Input 1
+
+
+########################################################### 
+# connection point controller_reset
+########################################################### 
+add_interface controller_reset reset end
+set_interface_property controller_reset associatedClock controller_clock
+set_interface_property controller_reset synchronousEdges DEASSERT
+set_interface_property controller_reset ENABLED true
+set_interface_property controller_reset EXPORT_OF ""
+set_interface_property controller_reset PORT_NAME_MAP ""
+set_interface_property controller_reset CMSIS_SVD_VARIABLES ""
+set_interface_property controller_reset SVD_ADDRESS_GROUP ""
+
+add_interface_port controller_reset i_rst reset Input 1
+
 add_interface spi_export2top conduit end
 set_interface_property spi_export2top associatedClock ""
 set_interface_property spi_export2top associatedReset ""
@@ -377,6 +377,20 @@ set_interface_assignment avmm_csr embeddedsw.configuration.isPrintableDevice 0
 
 
 ########################################################### 
+# connection point spi_clock
+########################################################### 
+add_interface spi_clock clock end
+set_interface_property spi_clock clockRate 40000000
+set_interface_property spi_clock ENABLED true
+set_interface_property spi_clock EXPORT_OF ""
+set_interface_property spi_clock PORT_NAME_MAP ""
+set_interface_property spi_clock CMSIS_SVD_VARIABLES ""
+set_interface_property spi_clock SVD_ADDRESS_GROUP ""
+
+add_interface_port spi_clock i_clk_spi clk Input 1
+
+
+########################################################### 
 # connection point counter
 ###########################################################  
 add_interface avmm_cnt avalon start
@@ -463,48 +477,7 @@ set_interface_property sclr_counter_req PORT_NAME_MAP ""
 set_interface_property sclr_counter_req CMSIS_SVD_VARIABLES ""
 set_interface_property sclr_counter_req SVD_ADDRESS_GROUP ""
 
-add_interface_port sclr_counter_req o_sclr_req reset_req Output 1
-
-########################################################### 
-# connection point controller_clock
-########################################################### 
-add_interface controller_clock clock end
-set_interface_property controller_clock clockRate 156250000
-set_interface_property controller_clock ENABLED true
-set_interface_property controller_clock EXPORT_OF ""
-set_interface_property controller_clock PORT_NAME_MAP ""
-set_interface_property controller_clock CMSIS_SVD_VARIABLES ""
-set_interface_property controller_clock SVD_ADDRESS_GROUP ""
-
-add_interface_port controller_clock i_clk clk Input 1
-
-
-########################################################### 
-# connection point controller_reset
-########################################################### 
-add_interface controller_reset reset end
-set_interface_property controller_reset associatedClock controller_clock
-set_interface_property controller_reset synchronousEdges DEASSERT
-set_interface_property controller_reset ENABLED true
-set_interface_property controller_reset EXPORT_OF ""
-set_interface_property controller_reset PORT_NAME_MAP ""
-set_interface_property controller_reset CMSIS_SVD_VARIABLES ""
-set_interface_property controller_reset SVD_ADDRESS_GROUP ""
-
-add_interface_port controller_reset i_rst reset Input 1
-
-########################################################### 
-# connection point spi_clock
-########################################################### 
-add_interface spi_clock clock end
-set_interface_property spi_clock clockRate 40000000
-set_interface_property spi_clock ENABLED true
-set_interface_property spi_clock EXPORT_OF ""
-set_interface_property spi_clock PORT_NAME_MAP ""
-set_interface_property spi_clock CMSIS_SVD_VARIABLES ""
-set_interface_property spi_clock SVD_ADDRESS_GROUP ""
-
-add_interface_port spi_clock i_clk_spi clk Input 1
+add_interface_port sclr_counter_req o_sclr_req reset Output 1
 
 ########################################################### 
 # connection point spi_reset
