@@ -1103,6 +1103,7 @@ begin
 					avs_csr_waitrequest				<= '1';
 					csr.written						<= '0'; --reset this irq signal				
 				when READ_CSR => 
+					avs_csr_readdata				<= (others => '0');
 					case avs_csr_address is
 						when conv_std_logic_vector(0,avs_csr_address'length) =>
 							
@@ -1126,6 +1127,10 @@ begin
                             avs_csr_readdata(15 downto 0)   <=  std_logic_vector(csr.monitor_seconds);
                             avs_csr_waitrequest         <= '0';
                             avs_csr_response			<= RSP_GOOD;
+						when conv_std_logic_vector(3,avs_csr_address'length) =>
+							avs_csr_readdata			<= (others => '0');
+							avs_csr_waitrequest			<= '0';
+							avs_csr_response			<= RSP_GOOD;
 						when others =>
 							avs_csr_readdata			<= (others=>'0');
 							avs_csr_waitrequest			<= '0';
@@ -1145,6 +1150,9 @@ begin
 							avs_csr_response				<= RSP_GOOD;
                         when conv_std_logic_vector(2,avs_csr_address'length) =>
                             csr.monitor_seconds             <= unsigned(avs_csr_writedata(15 downto 0));
+							avs_csr_waitrequest				<= '0';
+							avs_csr_response				<= RSP_GOOD;
+						when conv_std_logic_vector(3,avs_csr_address'length) =>
 							avs_csr_waitrequest				<= '0';
 							avs_csr_response				<= RSP_GOOD;
 						when others =>

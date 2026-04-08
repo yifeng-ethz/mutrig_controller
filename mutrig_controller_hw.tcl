@@ -352,7 +352,7 @@ set_interface_property avmm_csr holdTime 0
 set_interface_property avmm_csr linewrapBursts false
 set_interface_property avmm_csr maximumPendingReadTransactions 0
 set_interface_property avmm_csr maximumPendingWriteTransactions 0
-set_interface_property avmm_csr readLatency 0
+set_interface_property avmm_csr readLatency 1
 set_interface_property avmm_csr readWaitTime 1
 set_interface_property avmm_csr setupTime 0
 set_interface_property avmm_csr timingUnits Cycles
