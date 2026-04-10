@@ -17,7 +17,7 @@ package require -exact qsys 16.1
 ###########################################################
 set_module_property DESCRIPTION ""
 set_module_property NAME mutrig_cfg_ctrl
-set_module_property VERSION 24.0.816
+set_module_property VERSION 24.0.817
 set_module_property INTERNAL false
 set_module_property OPAQUE_ADDRESS_MAP true
 set_module_property GROUP "Mu3e Control Plane/Modules"
