@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<device schemaVersion="1.3" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:noNamespaceSchemaLocation="CMSIS-SVD.xsd">
+  <vendor>Mu3e</vendor>
+  <vendorID>MU3E</vendorID>
+  <name>MU3E_MUTRIG_CFG_CTRL</name>
+  <series>MU3E_FPGA_IP</series>
+  <version>24.0.817</version>
+  <description>CMSIS-SVD description of the MuTRiG controller CSR aperture. BaseAddress is 0 because this file describes the relative CSR aperture of the IP; system integration supplies the live slave base address.</description>
+  <addressUnitBits>8</addressUnitBits>
+  <width>32</width>
+  <size>32</size>
+  <access>read-write</access>
+  <resetValue>0x00000000</resetValue>
+  <resetMask>0xFFFFFFFF</resetMask>
+  <peripherals>
+    <peripheral>
+      <name>MUTRIG_CFG_CTRL_CSR</name>
+      <description>Relative 4-word command/status aperture for the MuTRiG controller.</description>
+      <groupName>MU3E_MUTRIG</groupName>
+      <baseAddress>0x0</baseAddress>
+      <addressBlock>
+        <offset>0x0</offset>
+        <size>0x10</size>
+        <usage>registers</usage>
+      </addressBlock>
+      <registers>
+        <register>
+          <name>OPCODE_STATUS</name>
+          <description>MuTRiG command/status word. Writes latch a 32-bit opcode. Reads return zero while idle; while busy, bits [31:16] echo opcode[31:16] and bits [15:0] return the controller status word.</description>
+          <addressOffset>0x00</addressOffset>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>value</name>
+              <description>Raw mixed read/write command and status word.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>32</bitWidth>
+              <access>read-write</access>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>OFFSET</name>
+          <description>Scratchpad/configuration memory offset word used by the MuTRiG controller RPC engine.</description>
+          <addressOffset>0x04</addressOffset>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>value</name>
+              <description>Raw 32-bit offset word.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>32</bitWidth>
+              <access>read-write</access>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>MONITOR_SECONDS</name>
+          <description>Monitor integration interval in seconds for the MuTRiG controller counter logic.</description>
+          <addressOffset>0x08</addressOffset>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>seconds</name>
+              <description>Monitor interval in seconds.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>16</bitWidth>
+              <access>read-write</access>
+            </field>
+            <field>
+              <name>reserved</name>
+              <description>Reserved, read as zero.</description>
+              <bitOffset>16</bitOffset>
+              <bitWidth>16</bitWidth>
+              <access>read-only</access>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>RESERVED3</name>
+          <description>Reserved fourth CSR word. Reads return zero. Writes are ignored.</description>
+          <addressOffset>0x0C</addressOffset>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>value</name>
+              <description>Reserved raw word.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>32</bitWidth>
+              <access>read-write</access>
+            </field>
+          </fields>
+        </register>
+      </registers>
+    </peripheral>
+  </peripherals>
+</device>
