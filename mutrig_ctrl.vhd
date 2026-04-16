@@ -148,7 +148,7 @@ entity mutrig_ctrl is
 		avm_schpad_response					: in  std_logic_vector(1 downto 0);
 		avm_schpad_waitrequest				: in  std_logic;
 		avm_schpad_readdatavalid			: in  std_logic;
-		avm_schpad_burstcount				: out std_logic_vector(7 downto 0); -- max burst is 2^<burstcount-1>=2^7=128
+		avm_schpad_burstcount				: out std_logic_vector(8 downto 0); -- max burst 256 words (9-bit burstcount)
 		
 		-- [Avalon Memory-Mapped Slave] for access to its internal control and status register
 		-- you must manually configure the qsys with base address of 0x0000FC04 (x4 for byte address)

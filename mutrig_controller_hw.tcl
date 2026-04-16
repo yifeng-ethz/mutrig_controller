@@ -334,7 +334,7 @@ add_interface_port avmm_schpad avm_schpad_readdata readdata Input 32
 add_interface_port avmm_schpad avm_schpad_response response Input 2
 add_interface_port avmm_schpad avm_schpad_waitrequest waitrequest Input 1
 add_interface_port avmm_schpad avm_schpad_readdatavalid readdatavalid Input 1
-add_interface_port avmm_schpad avm_schpad_burstcount burstcount Output 8
+add_interface_port avmm_schpad avm_schpad_burstcount burstcount Output 9
 
 
 ########################################################### 

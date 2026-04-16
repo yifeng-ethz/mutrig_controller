@@ -1,0 +1,26 @@
+set_global_assignment -name FAMILY "Arria V"
+set_global_assignment -name DEVICE 5AGXBA7D4F31C5
+set_global_assignment -name TOP_LEVEL_ENTITY mutrig_cfg_ctrl_syn_top
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.1.0
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 4
+set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
+set_global_assignment -name ROUTER_TIMING_OPTIMIZATION_LEVEL MAXIMUM
+set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC ON
+set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION ON
+set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_RETIMING ON
+set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT NORMAL
+
+set_global_assignment -name VHDL_FILE ../../alt_dpram/alt_dpram.vhd
+set_global_assignment -name VHDL_FILE ../../alt_dcfifo/alt_dcfifo_cdc.vhd
+set_global_assignment -name VHDL_FILE ../../alt_template_simple_dual_port_ram_single_clock/simple_dual_port_ram_single_clock.vhd
+set_global_assignment -name VHDL_FILE ../../write_mask_gen.vhd
+set_global_assignment -name VHDL_FILE ../../mutrig_ctrl.vhd
+set_global_assignment -name VHDL_FILE mutrig_cfg_ctrl_syn_top.vhd
+
+set_global_assignment -name SDC_FILE mutrig_cfg_ctrl_syn.sdc
+set_global_assignment -name LAST_QUARTUS_VERSION "18.1.0 Standard Edition"
+
+set_instance_assignment -name GLOBAL_SIGNAL "GLOBAL CLOCK" -to controller_clk
+set_instance_assignment -name GLOBAL_SIGNAL "GLOBAL CLOCK" -to spi_clk
