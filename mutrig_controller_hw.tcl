@@ -17,7 +17,7 @@ package require -exact qsys 16.1
 ###########################################################
 set_module_property DESCRIPTION ""
 set_module_property NAME mutrig_cfg_ctrl
-set_module_property VERSION 24.0.817
+set_module_property VERSION 24.1.423
 set_module_property INTERNAL false
 set_module_property OPAQUE_ADDRESS_MAP true
 set_module_property GROUP "Mu3e Control Plane/Modules"
@@ -142,8 +142,8 @@ This parameter select the clock phase. Depending on the CPHA bit, the rising or 
 set_parameter_property CPHA DESCRIPTION $dscpt
 set_parameter_property CPHA LONG_DESCRIPTION $dscpt
 
-add_parameter CLK_FREQUENCY NATURAL 156250000
-set_parameter_property CLK_FREQUENCY DEFAULT_VALUE 156250000
+add_parameter CLK_FREQUENCY NATURAL 125000000
+set_parameter_property CLK_FREQUENCY DEFAULT_VALUE 125000000
 set_parameter_property CLK_FREQUENCY DISPLAY_NAME CLK_FREQUENCY
 set_parameter_property CLK_FREQUENCY TYPE NATURAL
 set_parameter_property CLK_FREQUENCY UNITS Hertz
@@ -262,7 +262,7 @@ add_display_item "SPI Setting" CPHA PARAMETER
 # connection point spi
 ###########################################################
 add_interface controller_clock clock end
-set_interface_property controller_clock clockRate 156250000
+set_interface_property controller_clock clockRate 125000000
 set_interface_property controller_clock ENABLED true
 set_interface_property controller_clock EXPORT_OF ""
 set_interface_property controller_clock PORT_NAME_MAP ""
@@ -512,6 +512,10 @@ proc my_elaborate {} {
 		}
 	}
 	
+	# ----
+	# keep the exported controller clock rate aligned with the instance parameter
+	set_interface_property controller_clock clockRate [get_parameter_value CLK_FREQUENCY]
+
 	# ----
 	# set spi clock rate
 	set_interface_property spi_clock clockRate [get_parameter_value CLK_FREQUENCY_SPI]
