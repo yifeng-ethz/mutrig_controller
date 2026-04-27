@@ -305,7 +305,7 @@ add_interface_port spi_export2top spi_ssn ssn Output 8
 # connection point schpad
 ###########################################################  
 add_interface avmm_schpad avalon start
-set_interface_property avmm_schpad addressUnits WORDS
+set_interface_property avmm_schpad addressUnits SYMBOLS
 set_interface_property avmm_schpad associatedClock controller_clock
 set_interface_property avmm_schpad associatedReset controller_reset
 set_interface_property avmm_schpad bitsPerSymbol 8
@@ -328,7 +328,7 @@ set_interface_property avmm_schpad PORT_NAME_MAP ""
 set_interface_property avmm_schpad CMSIS_SVD_VARIABLES ""
 set_interface_property avmm_schpad SVD_ADDRESS_GROUP ""
 
-add_interface_port avmm_schpad avm_schpad_address address Output 10
+add_interface_port avmm_schpad avm_schpad_address address Output 11
 add_interface_port avmm_schpad avm_schpad_read read Output 1
 add_interface_port avmm_schpad avm_schpad_readdata readdata Input 32
 add_interface_port avmm_schpad avm_schpad_response response Input 2

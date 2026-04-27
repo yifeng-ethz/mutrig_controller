@@ -11,7 +11,7 @@ entity mutrig_cfg_ctrl_syn_top is
 end entity mutrig_cfg_ctrl_syn_top;
 
 architecture rtl of mutrig_cfg_ctrl_syn_top is
-    type schpad_mem_t is array (0 to 1023) of std_logic_vector(31 downto 0);
+    type schpad_mem_t is array (0 to 2047) of std_logic_vector(31 downto 0);
 
     function init_schpad return schpad_mem_t is
         variable mem : schpad_mem_t;
@@ -32,7 +32,7 @@ architecture rtl of mutrig_cfg_ctrl_syn_top is
     signal probe_accum_ctrl        : std_logic_vector(31 downto 0) := (others => '0');
     signal probe_accum_spi         : std_logic_vector(31 downto 0) := (others => '0');
 
-    signal avm_schpad_address      : std_logic_vector(9 downto 0);
+    signal avm_schpad_address      : std_logic_vector(10 downto 0);
     signal avm_schpad_read         : std_logic;
     signal avm_schpad_readdata     : std_logic_vector(31 downto 0) := (others => '0');
     signal avm_schpad_response     : std_logic_vector(1 downto 0) := (others => '0');

@@ -141,8 +141,8 @@ entity mutrig_ctrl is
 		i_rst_spi							: std_logic; -- reset for 40MHz clock
 		-- TODO: add another dedicated spi reset
 	
-		-- [Avalom Memory-Mapped Master] exclusive access to scratchpad of mutrig config
-		avm_schpad_address					: out std_logic_vector(9 downto 0); -- word addressing: (byte 0x0000 to 0x03ff)
+		-- [Avalon Memory-Mapped Master] exclusive access to scratchpad of mutrig config
+		avm_schpad_address					: out std_logic_vector(10 downto 0); -- byte addressing; current systems use the low 0x0000..0x03ff window
 		avm_schpad_read						: out std_logic;
 		avm_schpad_readdata					: in  std_logic_vector(31 downto 0);
 		avm_schpad_response					: in  std_logic_vector(1 downto 0);
@@ -161,7 +161,7 @@ entity mutrig_ctrl is
 		avs_csr_response					: out std_logic_vector(1 downto 0);
 		
 		-- [Avalon Memory-Mapped Master] exclusive access to counter values
-		avm_cnt_address 					: out std_logic_vector(15 downto 0);-- 32*8=256 counters, so address bit should be at least 8 bit, if they are closly packed
+		avm_cnt_address 					: out std_logic_vector(15 downto 0); -- wide enough for the counter aperture plus monitor offset
 		avm_cnt_read						: out std_logic;
 		avm_cnt_readdata					: in  std_logic_vector(31 downto 0);
 		avm_cnt_waitrequest					: in  std_logic;
