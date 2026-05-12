@@ -886,6 +886,7 @@ begin
 			o_sclr_req			<= '0';
 			sclr_timer_cnt		<= 0;
 			wait_timer_cnt		<= (others => '0');
+			monitor_wait_cycles	<= conv_std_logic_vector(CLK_FREQUENCY,32);
 			slaveresponse_timeout		<= '0';
 			slaveresponse_timeout_cnt	<= 0;	
 			monitor_asic_cnt			<= 0;
